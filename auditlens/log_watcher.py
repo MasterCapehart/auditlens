@@ -94,7 +94,16 @@ def watch_xcode_simulator():
     try:
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         for line in iter(process.stdout.readline, ''):
+            # Si xcrun o simctl escupen un error directamente, lo mostramos
+            if "xcrun: error:" in line or "No devices are booted" in line or "An error was encountered:" in line:
+                print(f"\033[91m[XCODE ERROR]\033[0m {line.strip()}")
+                
             _process_log_line(line)
+            
+        process.wait()
+        if process.returncode != 0:
+            print("\n\033[93m[AuditLens]\033[0m El observador se cerró (el simulador de iOS no está corriendo o se apagó).")
+            
     except FileNotFoundError:
         print("\033[91m[ERROR]\033[0m No se encontraron las herramientas de Xcode (xcrun). ¿Estás en un Mac con Xcode instalado?")
     except KeyboardInterrupt:
