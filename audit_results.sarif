@@ -1,0 +1,390 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "AuditLens Enterprise",
+          "informationUri": "https://github.com/MasterCapehart/auditlens",
+          "rules": [
+            {
+              "id": "SEC-02-MD5-USAGE",
+              "shortDescription": {
+                "text": "Uso de Algoritmo D\u00e9bil MD5"
+              },
+              "fullDescription": {
+                "text": "MD5 es criptogr\u00e1ficamente inseguro. Usar SHA-256 o bcrypt."
+              },
+              "properties": {
+                "tags": [
+                  "OWASP-A2",
+                  "PCI-DSS"
+                ]
+              }
+            },
+            {
+              "id": "SEC-01-HARDCODED-SECRET",
+              "shortDescription": {
+                "text": "Hardcoded Secret (Passwords, Tokens, Keys)"
+              },
+              "fullDescription": {
+                "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+              },
+              "properties": {
+                "tags": [
+                  "OWASP-A7",
+                  "ISO-27001:A.9"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "SEC-02-MD5-USAGE",
+          "level": "error",
+          "message": {
+            "text": "MD5 es criptogr\u00e1ficamente inseguro. Usar SHA-256 o bcrypt."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/utils.py"
+                },
+                "region": {
+                  "startLine": 46
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/views.py"
+                },
+                "region": {
+                  "startLine": 2605
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-02-MD5-USAGE",
+          "level": "error",
+          "message": {
+            "text": "MD5 es criptogr\u00e1ficamente inseguro. Usar SHA-256 o bcrypt."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/views.py"
+                },
+                "region": {
+                  "startLine": 2293
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_tasks_sla.py"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_tasks_sla.py"
+                },
+                "region": {
+                  "startLine": 27
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_views.py"
+                },
+                "region": {
+                  "startLine": 28
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_views.py"
+                },
+                "region": {
+                  "startLine": 122
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_views.py"
+                },
+                "region": {
+                  "startLine": 151
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_views.py"
+                },
+                "region": {
+                  "startLine": 182
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_e2e.py"
+                },
+                "region": {
+                  "startLine": 22
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_e2e.py"
+                },
+                "region": {
+                  "startLine": 92
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_e2e.py"
+                },
+                "region": {
+                  "startLine": 225
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_e2e.py"
+                },
+                "region": {
+                  "startLine": 334
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_integration.py"
+                },
+                "region": {
+                  "startLine": 191
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_integration.py"
+                },
+                "region": {
+                  "startLine": 237
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/tests/test_integration.py"
+                },
+                "region": {
+                  "startLine": 243
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/management/commands/make_inspector_admin.py"
+                },
+                "region": {
+                  "startLine": 26
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "SEC-01-HARDCODED-SECRET",
+          "level": "error",
+          "message": {
+            "text": "Detecta secretos en texto plano (contrase\u00f1as, tokens de APIs) hardcodeados en el c\u00f3digo."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/Users/danielflores/mockup2/ecoalerta/backend/reportes/management/commands/create_admin_user.py"
+                },
+                "region": {
+                  "startLine": 31
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -6,12 +6,22 @@ setup(
     description="Herramienta CLI Integral de Análisis SAST y Diagnóstico Post-Mortem",
     author="Tu Nombre",
     packages=find_packages(),
+    include_package_data=True,
+    package_data={
+        '': ['*.yaml'],
+    },
     entry_points={
         "console_scripts": [
             "auditlens=auditlens.cli:main",
         ],
     },
-    install_params=[],
+    install_requires=[
+        'pyyaml',
+        'tree-sitter',
+        'tree-sitter-python',
+        'tree-sitter-javascript',
+        'tree-sitter-swift',
+    ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

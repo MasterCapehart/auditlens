@@ -1,74 +1,108 @@
-import ast
 import os
+import argparse
+from tree_sitter import Language, Parser
+from .rules_engine import RulesEngine
+from .taint_analyzer import TaintAnalyzer
 
-class SecurityVisitor(ast.NodeVisitor):
-    def __init__(self, filepath):
-        self.diagnostics = []
-        self.filepath = filepath
-
-    def visit_Assign(self, node):
-        for target in node.targets:
-            if isinstance(target, ast.Name):
-                var_name = target.id.lower()
-                if any(x in var_name for x in ['password', 'secret', 'token', 'api_key']):
-                    if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                        self.diagnostics.append(
-                            f"\033[91m[SAST WARNING]\033[0m {self.filepath}:{node.lineno} - Se detectó un posible secreto hardcodeado en la variable '{target.id}'."
-                        )
-        self.generic_visit(node)
-
-class ComplianceVisitor(ast.NodeVisitor):
-    def __init__(self, filepath):
-        self.diagnostics = []
-        self.filepath = filepath
-
-    def visit_Assign(self, node):
-        for target in node.targets:
-            if isinstance(target, ast.Name):
-                var_name = target.id.lower()
-                if 'rut' in var_name:
-                    self.diagnostics.append(
-                        f"\033[93m[COMPLIANCE INFO]\033[0m {self.filepath}:{node.lineno} - Manejo de dato sensible (RUT) detectado (Ley N° 19.628). Asegúrate de ofuscar/encriptar este valor."
-                    )
-        self.generic_visit(node)
-
-def analyze_file(filepath):
+def load_parser(ext):
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            code = f.read()
-        
-        tree = ast.parse(code)
-        
-        sec_visitor = SecurityVisitor(filepath)
-        sec_visitor.visit(tree)
-        for diag in sec_visitor.diagnostics:
-            print(diag)
-
-        comp_visitor = ComplianceVisitor(filepath)
-        comp_visitor.visit(tree)
-        for diag in comp_visitor.diagnostics:
-            print(diag)
+        if ext == '.py':
+            import tree_sitter_python as ts
+            lang = Language(ts.language())
+        elif ext == '.js' or ext == '.jsx':
+            import tree_sitter_javascript as ts
+            lang = Language(ts.language())
+        elif ext == '.swift':
+            import tree_sitter_swift as ts
+            lang = Language(ts.language())
+        else:
+            return None
             
-    except SyntaxError:
-        print(f"\033[91m[ERROR]\033[0m Error de sintaxis en {filepath}. No se pudo analizar.")
-    except Exception as e:
-        pass # Ignorar archivos binarios u otros errores de lectura
+        parser = Parser(lang)
+        return parser
+    except ImportError:
+        return None
 
-def run_static_analysis(path):
-    print(f"\033[94m[AuditLens]\033[0m Iniciando escaneo estático en: {path}...\n")
-    if os.path.isfile(path):
-        if path.endswith('.py'):
-            analyze_file(path)
-    elif os.path.isdir(path):
-        exclude_dirs = {'venv', 'env', '.env', '.git', '__pycache__', 'node_modules'}
-        for root, dirs, files in os.walk(path):
-            # Ignorar carpetas excluidas modificando la lista dirs in-place
-            dirs[:] = [d for d in dirs if d not in exclude_dirs]
-            
-            for file in files:
-                if file.endswith('.py'):
-                    analyze_file(os.path.join(root, file))
-    else:
-        print("La ruta especificada no existe.")
+def analyze_file(file_path, rules_engine, taint_analyzer, sarif_exporter=None):
+    ext = os.path.splitext(file_path)[1].lower()
     
-    print("\n\033[92m[AuditLens]\033[0m Escaneo finalizado.")
+    # 1. Obtener reglas aplicables para este lenguaje
+    rules = rules_engine.get_rules_for_language(ext)
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            code_lines = f.readlines()
+            code_text = "".join(code_lines)
+    except Exception:
+        return
+        
+    findings = []
+    
+    # 2. Análisis basado en Regex / AST desde el YAML
+    # Para el MVP híbrido, las reglas YAML se aplican sobre las líneas,
+    # pero usamos Tree-sitter para validar que sea código real (opcionalmente)
+    for rule in rules:
+        for i, line in enumerate(code_lines):
+            if rule.match_text(line):
+                finding = {
+                    "rule_id": rule.id,
+                    "name": rule.name,
+                    "description": rule.description,
+                    "file": file_path,
+                    "line": i + 1,
+                    "severity": rule.severity,
+                    "compliance": rule.compliance
+                }
+                findings.append(finding)
+
+    # 3. Taint Analysis (Flujo de datos) - MVP Python y JS/Swift básico
+    taint_findings = taint_analyzer.analyze(file_path, code_lines)
+    findings.extend(taint_findings)
+
+    # 4. Parsing Estructural con Tree-sitter (Opcional, para análisis más profundos)
+    parser = load_parser(ext)
+    if parser:
+        tree = parser.parse(code_text.encode('utf-8'))
+        # Aquí se podrían recorrer los nodos del AST generado por Tree-sitter
+        # (root_node = tree.root_node) para auditorías de estructura de datos avanzadas.
+
+    # Imprimir o exportar hallazgos
+    for finding in findings:
+        color = "\033[91m" if finding['severity'] == "CRITICAL" or finding['severity'] == "HIGH" else "\033[93m"
+        print(f"{color}[{finding['rule_id']}] {finding['file']}:{finding['line']} - {finding['name']}\033[0m")
+        if finding.get('compliance'):
+            print(f"   \033[90mCumplimiento: {', '.join(finding['compliance'])}\033[0m")
+            
+        if sarif_exporter:
+            sarif_exporter.add_finding(finding)
+
+def run_static_analysis(path, export_sarif=False):
+    print(f"\033[94m[AuditLens Enterprise]\033[0m Iniciando escaneo en: {path}...\n")
+    
+    rules_engine = RulesEngine()
+    taint_analyzer = TaintAnalyzer()
+    
+    sarif_exporter = None
+    if export_sarif:
+        from .sarif_exporter import SarifExporter
+        sarif_exporter = SarifExporter()
+
+    if os.path.isfile(path):
+        ext = os.path.splitext(path)[1].lower()
+        if ext in ['.py', '.js', '.jsx', '.swift']:
+            analyze_file(path, rules_engine, taint_analyzer, sarif_exporter)
+    elif os.path.isdir(path):
+        exclude_dirs = {'venv', 'env', '.env', '.git', '__pycache__', 'node_modules', 'build'}
+        for root, dirs, files in os.walk(path):
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
+            for file in files:
+                ext = os.path.splitext(file)[1].lower()
+                if ext in ['.py', '.js', '.jsx', '.swift']:
+                    analyze_file(os.path.join(root, file), rules_engine, taint_analyzer, sarif_exporter)
+    else:
+        print("\033[91m[ERROR]\033[0m La ruta especificada no existe.")
+        
+    print(f"\n\033[92m[AuditLens Enterprise]\033[0m Escaneo finalizado.")
+    
+    if sarif_exporter:
+        sarif_exporter.export()

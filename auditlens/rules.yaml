@@ -1,0 +1,24 @@
+rules:
+  - id: "SEC-01-HARDCODED-SECRET"
+    name: "Hardcoded Secret (Passwords, Tokens, Keys)"
+    description: "Detecta secretos en texto plano (contraseñas, tokens de APIs) hardcodeados en el código."
+    languages: ["python", "javascript", "swift"]
+    regex_pattern: "(?i)(password|secret|token|api_key|apikey)\\s*(=|:)\\s*[\"'][^\"']+[\"']"
+    compliance: ["OWASP-A7", "ISO-27001:A.9"]
+    severity: "HIGH"
+
+  - id: "COMP-01-SENSITIVE-DATA-RUT"
+    name: "Manejo de Dato Sensible (RUT)"
+    description: "Detecta el uso o manipulación de la variable 'RUT' que debe ser ofuscada."
+    languages: ["python", "javascript", "swift"]
+    regex_pattern: "(?i)\\brut\\b"
+    compliance: ["Ley N° 19.628 (Chile)", "GDPR Art. 5"]
+    severity: "MEDIUM"
+
+  - id: "SEC-02-MD5-USAGE"
+    name: "Uso de Algoritmo Débil MD5"
+    description: "MD5 es criptográficamente inseguro. Usar SHA-256 o bcrypt."
+    languages: ["python", "javascript", "swift"]
+    regex_pattern: "(?i)md5\\("
+    compliance: ["OWASP-A2", "PCI-DSS"]
+    severity: "HIGH"
