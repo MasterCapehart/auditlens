@@ -9,9 +9,9 @@ Esta herramienta CLI te permite escanear proyectos en busca de secretos expuesto
 Puedes instalar esta herramienta globalmente en tu sistema directamente desde GitHub utilizando `pip`:
 
 ```bash
-pip install git+https://github.com/tu-usuario/auditlens.git
+pip install git+https://github.com/MasterCapehart/auditlens.git
 ```
-*(Reemplaza la URL con la ruta de tu repositorio cuando lo subas a GitHub)*
+
 
 Una vez instalado, el comando `auditlens` estará disponible en tu terminal.
 
