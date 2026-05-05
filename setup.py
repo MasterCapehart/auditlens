@@ -21,6 +21,7 @@ setup(
         'tree-sitter-python',
         'tree-sitter-javascript',
         'tree-sitter-swift',
+        'fpdf2',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

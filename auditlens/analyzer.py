@@ -23,7 +23,7 @@ def load_parser(ext):
     except ImportError:
         return None
 
-def analyze_file(file_path, rules_engine, taint_analyzer, sarif_exporter=None):
+def analyze_file(file_path, rules_engine, taint_analyzer, sarif_exporter=None, pdf_exporter=None):
     ext = os.path.splitext(file_path)[1].lower()
     
     # 1. Obtener reglas aplicables para este lenguaje
@@ -75,8 +75,10 @@ def analyze_file(file_path, rules_engine, taint_analyzer, sarif_exporter=None):
             
         if sarif_exporter:
             sarif_exporter.add_finding(finding)
+        if pdf_exporter:
+            pdf_exporter.add_finding(finding)
 
-def run_static_analysis(path, export_sarif=False):
+def run_static_analysis(path, export_sarif=False, export_pdf=False):
     print(f"\033[94m[AuditLens Enterprise]\033[0m Iniciando escaneo en: {path}...\n")
     
     rules_engine = RulesEngine()
@@ -86,11 +88,16 @@ def run_static_analysis(path, export_sarif=False):
     if export_sarif:
         from .sarif_exporter import SarifExporter
         sarif_exporter = SarifExporter()
+        
+    pdf_exporter = None
+    if export_pdf:
+        from .pdf_exporter import PdfExporter
+        pdf_exporter = PdfExporter()
 
     if os.path.isfile(path):
         ext = os.path.splitext(path)[1].lower()
         if ext in ['.py', '.js', '.jsx', '.swift']:
-            analyze_file(path, rules_engine, taint_analyzer, sarif_exporter)
+            analyze_file(path, rules_engine, taint_analyzer, sarif_exporter, pdf_exporter)
     elif os.path.isdir(path):
         exclude_dirs = {'venv', 'env', '.env', '.git', '__pycache__', 'node_modules', 'build'}
         for root, dirs, files in os.walk(path):
@@ -98,7 +105,7 @@ def run_static_analysis(path, export_sarif=False):
             for file in files:
                 ext = os.path.splitext(file)[1].lower()
                 if ext in ['.py', '.js', '.jsx', '.swift']:
-                    analyze_file(os.path.join(root, file), rules_engine, taint_analyzer, sarif_exporter)
+                    analyze_file(os.path.join(root, file), rules_engine, taint_analyzer, sarif_exporter, pdf_exporter)
     else:
         print("\033[91m[ERROR]\033[0m La ruta especificada no existe.")
         
@@ -106,3 +113,6 @@ def run_static_analysis(path, export_sarif=False):
     
     if sarif_exporter:
         sarif_exporter.export()
+        
+    if pdf_exporter:
+        pdf_exporter.generate_report()
