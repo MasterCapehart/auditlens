@@ -5,8 +5,7 @@ import subprocess
 import threading
 
 # Regex para detectar errores típicos de Swift/Xcode
-# Ej: "Fatal error: Index out of range: file /path/to/File.swift, line 42"
-SWIFT_ERROR_REGEX = re.compile(r'(?:Fatal error|Exception|Error):.*?(?:file\s+)?([/\w\.-]+?\.(?:swift|py))(?:,|\s+line)?\s+(\d+)', re.IGNORECASE)
+SWIFT_ERROR_REGEX = re.compile(r'(?i)(?:fatal error|exception|error|crash).*?([a-zA-Z0-9_/\.-]+?\.(?:swift|py)).*?(?:line|:)\s*(\d+)')
 
 def _find_file_in_project(filename, search_path="."):
     """Busca el archivo en el proyecto local si solo tenemos el nombre."""
@@ -89,7 +88,7 @@ def watch_xcode_simulator():
     print("Abre tu app EcoAlerta en el emulador. Detectaremos errores nativos en tiempo real.\n")
     
     # Comando nativo de mac: xcrun simctl spawn booted log stream
-    cmd = ["xcrun", "simctl", "spawn", "booted", "log", "stream", "--level", "error"]
+    cmd = ["xcrun", "simctl", "spawn", "booted", "log", "stream"]
     
     try:
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
