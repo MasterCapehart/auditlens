@@ -15,6 +15,9 @@ class PdfExporter(FPDF):
         if severity in self.stats:
             self.stats[severity] += 1
 
+    def _sanitize(self, text):
+        return str(text).encode('latin-1', 'replace').decode('latin-1')
+
     def header(self):
         # Arial bold 15
         self.set_font('Helvetica', 'B', 15)
@@ -77,22 +80,22 @@ class PdfExporter(FPDF):
                 sev = f.get('severity', 'LOW').upper()
                 self.set_text_color(*colors.get(sev, (0,0,0)))
                 self.set_font('Helvetica', 'B', 12)
-                self.cell(0, 10, f"Hallazgo #{idx} [{sev}] - {f.get('name', '')}", 0, 1)
+                self.cell(0, 10, self._sanitize(f"Hallazgo #{idx} [{sev}] - {f.get('name', '')}"), 0, 1)
                 
                 self.set_text_color(0, 0, 0)
                 self.set_font('Helvetica', '', 10)
                 
                 # Regla y Archivo
-                self.write(6, f"Regla: {f.get('rule_id', '')}\n")
-                self.write(6, f"Archivo: {f.get('file', '')} (Linea: {f.get('line', '')})\n")
+                self.write(6, self._sanitize(f"Regla: {f.get('rule_id', '')}\n"))
+                self.write(6, self._sanitize(f"Archivo: {f.get('file', '')} (Linea: {f.get('line', '')})\n"))
                 
                 # Descripción
-                self.write(6, f"Descripcion: {f.get('description', '')}\n")
+                self.write(6, self._sanitize(f"Descripcion: {f.get('description', '')}\n"))
                 
                 # Cumplimiento
                 if f.get('compliance'):
                     comp_text = ", ".join(f['compliance'])
-                    self.write(6, f"Matriz de Cumplimiento: {comp_text}\n")
+                    self.write(6, self._sanitize(f"Matriz de Cumplimiento: {comp_text}\n"))
                 
                 self.ln(5)
                 # Línea separadora
