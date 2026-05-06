@@ -3,6 +3,7 @@ import argparse
 from tree_sitter import Language, Parser
 from .rules_engine import RulesEngine
 from .taint_analyzer import TaintAnalyzer
+from .sca_engine import SCAEngine
 
 def load_parser(ext):
     try:
@@ -83,6 +84,7 @@ def run_static_analysis(path, export_sarif=False, export_pdf=False):
     
     rules_engine = RulesEngine()
     taint_analyzer = TaintAnalyzer()
+    sca_engine = SCAEngine()
     
     sarif_exporter = None
     if export_sarif:
@@ -93,6 +95,18 @@ def run_static_analysis(path, export_sarif=False, export_pdf=False):
     if export_pdf:
         from .pdf_exporter import PdfExporter
         pdf_exporter = PdfExporter()
+
+    print("\033[94m[AuditLens Enterprise]\033[0m Ejecutando Analisis de Composicion de Software (SCA)...")
+    sca_findings = sca_engine.analyze_directory(path)
+    for finding in sca_findings:
+        color = "\033[91m"
+        print(f"{color}[{finding['rule_id']}] {finding['file']}:{finding['line']} - {finding['name']}\033[0m")
+        if finding.get('compliance'):
+            print(f"   \033[90mCumplimiento: {', '.join(finding['compliance'])}\033[0m")
+        if sarif_exporter:
+            sarif_exporter.add_finding(finding)
+        if pdf_exporter:
+            pdf_exporter.add_finding(finding)
 
     if os.path.isfile(path):
         ext = os.path.splitext(path)[1].lower()
