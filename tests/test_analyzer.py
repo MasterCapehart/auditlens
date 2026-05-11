@@ -13,9 +13,12 @@ from auditlens.taint_analyzer import TaintAnalyzer
 
 # ── Suppress mechanism (MISSING-05) ──────────────────────────────────────────
 def test_suppress_comment_detected():
-    assert _should_suppress('password = "foo"  # auditlens: ignore')
-    assert _should_suppress('  # auditlens: ignore')
-    assert not _should_suppress('password = "foo"')
+    assert _should_suppress('password = "foo"  # auditlens: ignore', 'SEC-01')
+    assert _should_suppress('  # auditlens: ignore', 'ANY-RULE')
+    assert not _should_suppress('password = "foo"', 'SEC-01')
+    # Rule-specific: only suppress the named rule
+    assert _should_suppress('x  # auditlens: ignore SEC-01', 'SEC-01')
+    assert not _should_suppress('x  # auditlens: ignore SEC-01', 'SEC-02')
 
 
 def test_suppress_prevents_finding(tmp_path):

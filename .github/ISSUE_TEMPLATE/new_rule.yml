@@ -1,0 +1,55 @@
+name: New Detection Rule
+description: Propose a new security rule for rules.yaml
+labels: ["enhancement", "rule"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a new rule! Fill in the details below.
+
+  - type: input
+    id: rule-id
+    attributes:
+      label: Proposed rule ID
+      placeholder: "e.g. SEC-12-HARDCODED-JWT-SECRET"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What does this rule detect?
+      placeholder: Describe the vulnerability and why it matters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example vulnerable code
+      render: python
+      placeholder: |
+        # Example code that should trigger the rule
+        jwt.decode(token, options={"verify_signature": False})
+    validations:
+      required: true
+
+  - type: input
+    id: compliance
+    attributes:
+      label: Compliance references
+      placeholder: "e.g. OWASP-A2:2021, CWE-347"
+
+  - type: input
+    id: severity
+    attributes:
+      label: Suggested severity
+      placeholder: "LOW | MEDIUM | HIGH | CRITICAL"
+    validations:
+      required: true
+
+  - type: textarea
+    id: regex
+    attributes:
+      label: Proposed regex pattern (optional)
+      placeholder: "(?i)verify_signature\\s*:\\s*False"

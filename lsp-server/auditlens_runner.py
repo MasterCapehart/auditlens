@@ -42,7 +42,7 @@ def send_to_vscode(data: dict):
     payload_bytes = json.dumps(data).encode('utf-8')
 
     if token:
-        sig = hmac.new(token.encode(), payload_bytes, hashlib.sha256).hexdigest()
+        sig = hmac.HMAC(token.encode(), payload_bytes, hashlib.sha256).hexdigest()
         envelope = json.dumps({'sig': sig, 'payload': data}) + '\n'
     else:
         envelope = json.dumps({'sig': '', 'payload': data}) + '\n'

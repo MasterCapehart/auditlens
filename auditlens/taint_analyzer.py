@@ -1,114 +1,109 @@
-# Taint Analysis for AuditLens
-# Tracks sensitive variable assignments and their subsequent use in dangerous sinks.
-
+"""AuditLens Taint Analyzer — T1-3/T1-4 enhanced."""
+from __future__ import annotations
 import re
+from typing import Dict, List, Optional, Set
 
 class TaintAnalyzer:
     def __init__(self):
-        # source_patterns: variable name fragments considered sensitive at birth
-        self.source_patterns = [
-            'rut', 'password', 'passwd', 'pwd', 'token', 'secret',
-            'api_key', 'apikey', 'auth_key', 'private_key', 'access_key',
-            'credential', 'ssn', 'credit_card', 'card_number',
+        self.source_name_patterns: List[str] = [
+            'rut','password','passwd','pwd','token','secret',
+            'api_key','apikey','auth_key','private_key','access_key',
+            'credential','ssn','credit_card','card_number',
         ]
-
-        # sink_patterns: dangerous functions where sensitive data should not flow unobfuscated
-        self.sink_patterns = [
-            'print', 'logging.info', 'logging.debug', 'logging.warning',
-            'logging.error', 'logger.info', 'logger.debug', 'logger.warning',
-            'logger.error', 'db.execute', 'cursor.execute', 'connection.execute',
-            'fetch', 'requests.post', 'requests.get', 'requests.put',
-            'requests.patch', 'requests.delete', 'urllib.request.urlopen',
-            'subprocess.run', 'subprocess.call', 'subprocess.Popen',
-            'os.system', 'eval', 'exec',
+        self._input_source_patterns: List[re.Pattern] = [
+            re.compile(r'request\s*\.\s*(?:args|form|json|data|values|files|cookies|headers)(?:\s*\.\s*get\s*\(|\s*\[)', re.IGNORECASE),
+            re.compile(r'request\s*\.\s*get_json\s*\(', re.IGNORECASE),
+            re.compile(r'\binput\s*\(', re.IGNORECASE),
+            re.compile(r'\bsys\s*\.\s*argv\s*\[', re.IGNORECASE),
+            re.compile(r'os\s*\.\s*environ\s*(?:\.\s*get\s*\(|\s*\[)', re.IGNORECASE),
+            re.compile(r'os\s*\.\s*getenv\s*\(', re.IGNORECASE),
+            re.compile(r'req\s*\.\s*(?:body|params|query|headers)\s*(?:\.\w+|\[)', re.IGNORECASE),
+            re.compile(r'process\s*\.\s*env\s*\[', re.IGNORECASE),
         ]
-
-        # Regex: matches assignments like:
-        #   password = "foo", self.token = x, user['secret'] = val,
-        #   let password =, const api_key =, var token =
-        # Uses word boundaries to avoid matching "last_password_update"
-        self._source_re = re.compile(
+        self.sink_patterns: List[str] = [
+            'print','logging.info','logging.debug','logging.warning','logging.error',
+            'logger.info','logger.debug','logger.warning','logger.error',
+            'db.execute','cursor.execute','connection.execute','session.execute',
+            'fetch','requests.post','requests.get','requests.put','requests.patch',
+            'requests.delete','urllib.request.urlopen',
+            'subprocess.run','subprocess.call','subprocess.Popen',
+            'os.system','eval','exec','compile','open',
+            'send_file','send_from_directory','redirect','render_template_string',
+        ]
+        self._source_assign_re = re.compile(
             r'(?:^|[\s\(,])(?:self\.|this\.)?(?:let\s+|const\s+|var\s+)?'
-            r'(\w*(?:' + '|'.join(re.escape(p) for p in self.source_patterns) + r')\w*)'
+            r'(\w*(?:' + '|'.join(re.escape(p) for p in self.source_name_patterns) + r')\w*)'
             r'\s*(?:=|\[[\'"]\w+[\'"]\]\s*=)',
-            re.IGNORECASE
+            re.IGNORECASE,
         )
-
-        # Precompile sink regexes for efficiency
-        self._sink_res = [
-            re.compile(r'(?<!\w)' + re.escape(sink) + r'\s*\(', re.IGNORECASE)
-            for sink in self.sink_patterns
+        self._sink_res: List[re.Pattern] = [
+            re.compile(r'(?<!\w)' + re.escape(s) + r'\s*\(', re.IGNORECASE)
+            for s in self.sink_patterns
         ]
 
-    def _is_comment(self, text: str, lang_ext: str = '') -> bool:
-        """Best-effort check: is the entire line a comment?"""
-        stripped = text.strip()
-        return (
-            stripped.startswith('#') or
-            stripped.startswith('//') or
-            stripped.startswith('*') or
-            stripped.startswith('/*')
-        )
+    def _is_comment_line(self, text: str) -> bool:
+        s = text.strip()
+        return s.startswith('#') or s.startswith('//') or s.startswith('*') or s.startswith('/*')
 
-    def analyze(self, file_path: str, code_lines: list) -> list:
-        """
-        Intra-procedural taint tracking.
-        Detects sensitive variable sources and checks if they flow
-        into dangerous sinks on subsequent lines without sanitization.
-        Returns a list of finding dicts.
-        """
-        findings = []
-        # BUG-01 FIX: use a separate dict so we never mutate while iterating.
-        tainted_vars: dict[str, int] = {}  # var_name -> line_number_where_tainted
-        reported: set[str] = set()          # avoid duplicate reports per var
+    def _strip_inline_comment(self, text: str) -> str:
+        return re.split(r'(?<!["\'])#', text)[0]
+
+    def _get_suppress_rules(self, line: str) -> Optional[Set[str]]:
+        lower = line.lower()
+        if 'auditlens: ignore' not in lower: return None
+        after = re.split(r'auditlens:\s*ignore', lower, maxsplit=1, flags=re.IGNORECASE)[-1]
+        rule_ids = set(re.findall(r'[A-Z0-9_-]{3,}', after.upper()))
+        return rule_ids
+
+    def _is_suppressed(self, line: str, rule_id: str = 'TAINT-01') -> bool:
+        suppressed = self._get_suppress_rules(line)
+        if suppressed is None: return False
+        if len(suppressed) == 0: return True
+        return rule_id in suppressed
+
+    def analyze(self, file_path: str, code_lines: List[str]) -> List[dict]:
+        findings: List[dict] = []
+        tainted_vars: Dict[str, tuple] = {}
+        reported: Set[str] = set()
 
         for line_idx, line in enumerate(code_lines):
             line_num = line_idx + 1
             text = line.rstrip('\n')
+            if self._is_comment_line(text): continue
+            code_part = self._strip_inline_comment(text)
 
-            # Skip whole-line comments
-            if self._is_comment(text):
-                continue
-
-            # Strip inline comments (Python # style) for matching purposes only
-            code_part = re.split(r'(?<!["\'])#', text)[0]
-
-            # ── 1. Detect Sources ────────────────────────────────────────────
-            # CQ-01 FIX: use proper regex with word boundaries
-            for match in self._source_re.finditer(code_part):
+            # 1. Assignment-based sources (sensitive variable names)
+            for match in self._source_assign_re.finditer(code_part):
                 var_name = match.group(1).lower()
-                tainted_vars[var_name] = line_num
+                tainted_vars[var_name] = (line_num, f"sensitive variable '{var_name}'")
 
-            # ── 2. Detect Sinks ──────────────────────────────────────────────
-            # CQ-02 FIX: only match actual function calls (sink_re ends with `\s*(`)
-            # and skip the declaration line itself
-            # BUG-01 FIX: iterate over a snapshot so deletion is safe
-            for var_name, source_line in list(tainted_vars.items()):
-                if line_num == source_line:
-                    continue
-                if var_name not in code_part.lower():
-                    continue
-                if var_name in reported:
-                    continue
+            # 2. T1-3: User-input sources on RHS
+            for input_re in self._input_source_patterns:
+                if input_re.search(code_part):
+                    assign_match = re.match(r'\s*(?:let\s+|const\s+|var\s+)?(\w+)\s*=', code_part)
+                    if assign_match:
+                        var_name = assign_match.group(1).lower()
+                        tainted_vars[var_name] = (line_num, f"user-controlled input assigned to '{var_name}'")
 
+            # 3. Sinks
+            for var_name, (source_line, source_desc) in list(tainted_vars.items()):
+                if line_num == source_line: continue
+                if var_name not in code_part.lower(): continue
+                if var_name in reported: continue
+                if self._is_suppressed(text, 'TAINT-01'): continue
                 for sink_re, sink_name in zip(self._sink_res, self.sink_patterns):
                     if sink_re.search(code_part):
-                        finding = {
-                            "rule_id": "TAINT-01",
-                            "name": "Sensitive Data Flow Vulnerability (Taint)",
-                            "description": (
-                                f"Sensitive variable '{var_name}' (declared at line {source_line}) "
+                        findings.append({
+                            'rule_id': 'TAINT-01',
+                            'name': 'Sensitive Data Flow Vulnerability (Taint)',
+                            'description': (
+                                f"{source_desc.capitalize()} (line {source_line}) "
                                 f"flows into dangerous sink '{sink_name}()' without sanitization."
                             ),
-                            "file": file_path,
-                            "line": line_num,
-                            "severity": "HIGH",
-                            "compliance": ["CWE-79", "CWE-89", "OWASP-A3"],
-                        }
-                        findings.append(finding)
+                            'file': file_path, 'line': line_num, 'severity': 'HIGH',
+                            'compliance': ['CWE-79','CWE-89','CWE-78','OWASP-A3:2021'],
+                        })
                         reported.add(var_name)
-                        # Remove from live tracking to avoid repeat reports
                         del tainted_vars[var_name]
                         break
-
         return findings

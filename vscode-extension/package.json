@@ -1,23 +1,28 @@
 {
   "name": "auditlens-extension",
   "displayName": "AuditLens",
-  "description": "Herramienta Integral de Análisis SAST y Diagnóstico Post-Mortem",
-  "version": "0.0.2",
+  "description": "Real-Time SAST, SCA and Post-Mortem Security Scanner",
+  "version": "0.1.0",
   "publisher": "auditlens",
   "repository": {
     "type": "git",
-    "url": "https://github.com/danielflores/auditlens"
+    "url": "https://github.com/MasterCapehart/auditlens"
   },
+  "bugs": {
+    "url": "https://github.com/MasterCapehart/auditlens/issues"
+  },
+  "homepage": "https://github.com/MasterCapehart/auditlens#readme",
   "engines": {
     "vscode": "^1.90.0"
   },
-  "categories": [
-    "Other"
-  ],
+  "categories": ["Linters", "Other"],
+  "keywords": ["security", "sast", "sca", "taint", "vulnerability", "auditlens"],
   "activationEvents": [
     "onLanguage:python",
     "onLanguage:javascript",
+    "onLanguage:javascriptreact",
     "onLanguage:typescript",
+    "onLanguage:typescriptreact",
     "onLanguage:swift"
   ],
   "main": "./out/extension.js",
@@ -25,7 +30,98 @@
     "commands": [
       {
         "command": "auditlens.runPostMortem",
-        "title": "Run with AuditLens"
+        "title": "AuditLens: Run with Post-Mortem diagnostics",
+        "category": "AuditLens"
+      },
+      {
+        "command": "auditlens.scanFile",
+        "title": "AuditLens: Scan Current File",
+        "category": "AuditLens"
+      },
+      {
+        "command": "auditlens.clearDiagnostics",
+        "title": "AuditLens: Clear Diagnostics",
+        "category": "AuditLens"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "auditlens.scanFile",
+          "group": "auditlens",
+          "when": "resourceLangId =~ /python|javascript|typescript|swift/"
+        },
+        {
+          "command": "auditlens.runPostMortem",
+          "group": "auditlens",
+          "when": "resourceLangId == python"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "auditlens.scanFile",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "editorFocus"
+      }
+    ],
+    "configuration": {
+      "title": "AuditLens",
+      "properties": {
+        "auditlens.minSeverity": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+          "default": "MEDIUM",
+          "description": "Minimum finding severity to show in the editor."
+        },
+        "auditlens.enableOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan files when saved."
+        },
+        "auditlens.enableOnOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan files when opened."
+        },
+        "auditlens.enableSCA": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Software Composition Analysis (SCA) on save. Disabled by default as it makes network requests."
+        },
+        "auditlens.scanDebounceMs": {
+          "type": "number",
+          "default": 500,
+          "description": "Milliseconds to wait after opening a file before scanning (debounce)."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "auditlens.gettingStarted",
+        "title": "Getting Started with AuditLens",
+        "description": "Set up real-time security scanning in your editor.",
+        "steps": [
+          {
+            "id": "auditlens.install",
+            "title": "Install the CLI",
+            "description": "Install the AuditLens CLI: ``pip install auditlens``\n\n[Open Terminal](command:workbench.action.terminal.new)",
+            "media": { "markdown": "media/install.md" }
+          },
+          {
+            "id": "auditlens.firstScan",
+            "title": "Run Your First Scan",
+            "description": "Save any Python, JavaScript, TypeScript, or Swift file — AuditLens will highlight findings automatically.\n\n[Open a File](command:workbench.action.files.openFile)",
+            "media": { "markdown": "media/scan.md" }
+          },
+          {
+            "id": "auditlens.settings",
+            "title": "Customize Severity",
+            "description": "Adjust which findings appear via **AuditLens: Min Severity** in settings.\n\n[Open Settings](command:workbench.action.openSettings?%22auditlens%22)",
+            "media": { "markdown": "media/settings.md" }
+          }
+        ]
       }
     ]
   },

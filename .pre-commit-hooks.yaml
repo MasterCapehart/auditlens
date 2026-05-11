@@ -1,0 +1,24 @@
+# AuditLens pre-commit hooks
+# https://pre-commit.com/
+
+- id: auditlens
+  name: AuditLens Security Scan
+  description: Run AuditLens SAST + Taint analysis on staged files (no network SCA)
+  language: python
+  entry: auditlens scan
+  args: ["--no-sca", "--severity", "HIGH"]
+  types_or: [python, javascript, ts, tsx, jsx, swift]
+  pass_filenames: false
+  additional_dependencies: []
+  stages: [commit]
+
+- id: auditlens-full
+  name: AuditLens Full Scan (SAST + SCA)
+  description: Run AuditLens with full SCA — recommended for pre-push hooks
+  language: python
+  entry: auditlens scan
+  args: ["--severity", "HIGH"]
+  types_or: [python, javascript, ts, tsx, jsx, swift]
+  pass_filenames: false
+  additional_dependencies: []
+  stages: [push]

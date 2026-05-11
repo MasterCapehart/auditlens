@@ -1,0 +1,106 @@
+name: AuditLens Security Scan
+description: >
+  Run AuditLens SAST, SCA, and Taint Analysis. Uploads SARIF results to
+  GitHub Security tab and fails the workflow on new findings.
+
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  path:
+    description: Directory or file to scan
+    required: false
+    default: '.'
+  min-severity:
+    description: Minimum severity to report (LOW | MEDIUM | HIGH | CRITICAL)
+    required: false
+    default: 'HIGH'
+  fail-on-findings:
+    description: Fail the workflow step if findings are found
+    required: false
+    default: 'true'
+  upload-sarif:
+    description: Upload SARIF results to GitHub Security tab
+    required: false
+    default: 'true'
+  no-sca:
+    description: Skip Software Composition Analysis (faster)
+    required: false
+    default: 'false'
+  save-baseline:
+    description: Path to save baseline file (optional)
+    required: false
+    default: ''
+  diff-baseline:
+    description: Path to baseline file for diff mode (only report new findings)
+    required: false
+    default: ''
+  python-version:
+    description: Python version to use for installing auditlens
+    required: false
+    default: '3.11'
+
+outputs:
+  sarif-file:
+    description: Path to the generated SARIF report
+    value: ${{ steps.scan.outputs.sarif-file }}
+  finding-count:
+    description: Total number of findings
+    value: ${{ steps.scan.outputs.finding-count }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install AuditLens
+      shell: bash
+      run: pip install auditlens
+
+    - name: Run AuditLens scan
+      id: scan
+      shell: bash
+      run: |
+        set +e  # don't exit on non-zero — we handle it below
+
+        ARGS="${{ inputs.path }} --format sarif --output auditlens-results.sarif --severity ${{ inputs.min-severity }}"
+
+        if [ "${{ inputs.no-sca }}" = "true" ]; then
+          ARGS="$ARGS --no-sca"
+        fi
+
+        if [ -n "${{ inputs.save-baseline }}" ]; then
+          ARGS="$ARGS --save-baseline ${{ inputs.save-baseline }}"
+        fi
+
+        if [ -n "${{ inputs.diff-baseline }}" ]; then
+          ARGS="$ARGS --diff-baseline ${{ inputs.diff-baseline }}"
+        fi
+
+        auditlens scan $ARGS
+        EXIT_CODE=$?
+
+        echo "sarif-file=auditlens-results.sarif" >> $GITHUB_OUTPUT
+
+        if [ -f "auditlens-results.sarif" ]; then
+          COUNT=$(python3 -c "import json,sys; d=json.load(open('auditlens-results.sarif')); print(len(d['runs'][0]['results']))" 2>/dev/null || echo "0")
+        else
+          COUNT=0
+        fi
+        echo "finding-count=$COUNT" >> $GITHUB_OUTPUT
+
+        if [ "${{ inputs.fail-on-findings }}" = "true" ]; then
+          exit $EXIT_CODE
+        fi
+
+    - name: Upload SARIF to GitHub Security
+      if: inputs.upload-sarif == 'true' && always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: auditlens-results.sarif
+        category: auditlens
+      continue-on-error: true

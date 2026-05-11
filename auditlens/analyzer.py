@@ -1,50 +1,35 @@
 """
 AuditLens — Static Analysis Orchestrator
 
-Changes vs original:
-- BUG-10: file read errors are reported, not silently swallowed
-- BUG-11: Tree-sitter AST traversal actually used (string literal scanning)
-- PERF-03: parsers cached per language session
-- MISSING-01: run_static_analysis returns exit code based on findings severity
-- MISSING-04: min_severity filter support
-- MISSING-05: inline suppress via '# auditlens: ignore' comment
-- MISSING-08: TypeScript / TSX support added
-- UX-01: messages in English
-- UX-02: summary count printed at end
-- CQ-06: removed unused 'import argparse'
+New in this version:
+- T1-2: --baseline/--diff mode (save/load fingerprint baseline)
+- T1-4: rule-specific suppress # auditlens: ignore RULE-ID
+- T1-5: .auditlens.yaml project config integration
+- T2-3: --format json output
+- T3-3: scan history persisted to SQLite
+- T3-6: Python 3.9 compat — Optional[X] instead of X | None
 """
 
+from __future__ import annotations
+
+import json
 import os
 import sys
+from typing import Dict, List, Optional
+
 from .rules_engine import RulesEngine
 from .taint_analyzer import TaintAnalyzer
 from .sca_engine import SCAEngine
 
-# ── Tree-sitter parser cache (PERF-03) ────────────────────────────────────────
-_PARSER_CACHE: dict = {}
+# ── Parser cache (PERF-03) ────────────────────────────────────────────────────
+_PARSER_CACHE: Dict[str, object] = {}
 
 _SUPPORTED_EXTENSIONS = {'.py', '.js', '.jsx', '.ts', '.tsx', '.swift'}
 
-_EXT_TO_LANGUAGE = {
-    '.py': 'python',
-    '.js': 'javascript',
-    '.jsx': 'javascript',
-    '.ts': 'typescript',
-    '.tsx': 'typescript',
-    '.swift': 'swift',
-}
-
 _SEVERITY_RANK = {'LOW': 0, 'MEDIUM': 1, 'HIGH': 2, 'CRITICAL': 3}
-
-SUPPRESS_COMMENT = 'auditlens: ignore'
 
 
 def _load_parser(ext: str):
-    """
-    PERF-03 FIX: cache parsers per language instead of re-initialising on every file.
-    PKG-06 FIX: Swift/TypeScript import failures produce a clear warning instead
-    of silently returning None.
-    """
     if ext in _PARSER_CACHE:
         return _PARSER_CACHE[ext]
 
@@ -53,70 +38,43 @@ def _load_parser(ext: str):
 
         if ext == '.py':
             import tree_sitter_python as ts_mod
+            lang = Language(ts_mod.language())
         elif ext in ('.js', '.jsx'):
             import tree_sitter_javascript as ts_mod
+            lang = Language(ts_mod.language())
         elif ext in ('.ts', '.tsx'):
             try:
                 import tree_sitter_typescript as ts_mod_ts
-                # tree_sitter_typescript exposes separate .typescript and .tsx
-                ts_mod = ts_mod_ts.typescript if ext in ('.ts',) else ts_mod_ts.tsx
-                lang = Language(ts_mod)
-                parser = Parser(lang)
-                _PARSER_CACHE[ext] = parser
-                return parser
+                ts_lang = ts_mod_ts.typescript if ext == '.ts' else ts_mod_ts.tsx
+                lang = Language(ts_lang)
             except ImportError:
-                print(
-                    f"\033[93m[AuditLens] Warning: tree-sitter-typescript not installed. "
-                    f"AST analysis disabled for {ext} files.\033[0m"
-                )
-                _PARSER_CACHE[ext] = None
-                return None
-            except (ValueError, Exception) as exc:
-                print(
-                    f"\033[93m[AuditLens] Warning: tree-sitter parser error for {ext}: {exc}. "
-                    f"AST analysis disabled.\033[0m"
-                )
                 _PARSER_CACHE[ext] = None
                 return None
         elif ext == '.swift':
             try:
                 import tree_sitter_swift as ts_mod
+                lang = Language(ts_mod.language())
             except ImportError:
-                print(
-                    "\033[93m[AuditLens] Warning: tree-sitter-swift not installed. "
-                    "AST analysis disabled for .swift files.\033[0m"
-                )
                 _PARSER_CACHE[ext] = None
                 return None
         else:
             _PARSER_CACHE[ext] = None
             return None
 
-        lang = Language(ts_mod.language())
         parser = Parser(lang)
         _PARSER_CACHE[ext] = parser
         return parser
 
-    except ImportError:
-        _PARSER_CACHE[ext] = None
-        return None
-    except (ValueError, Exception) as exc:
-        # PKG-03 FIX: tree-sitter Language version mismatch (e.g. "Incompatible Language version")
+    except (ImportError, ValueError, Exception) as exc:
         print(
-            f"\033[93m[AuditLens] Warning: tree-sitter parser unavailable for {ext}: {exc}. "
-            f"AST analysis disabled for this file type.\033[0m"
+            f'\033[93m[AuditLens] Warning: AST parser unavailable for {ext}: {exc}\033[0m'
         )
         _PARSER_CACHE[ext] = None
         return None
 
 
-def _ast_scan(file_path: str, code_bytes: bytes, parser, ext: str) -> list:
-    """
-    BUG-11 FIX: actually traverse the Tree-sitter AST.
-    Currently detects hardcoded string literals assigned to sensitive identifiers
-    — a structural check that regex alone cannot do reliably.
-    """
-    findings = []
+def _ast_scan(file_path: str, code_bytes: bytes, parser) -> List[dict]:
+    findings: List[dict] = []
     try:
         tree = parser.parse(code_bytes)
         root = tree.root_node
@@ -127,52 +85,33 @@ def _ast_scan(file_path: str, code_bytes: bytes, parser, ext: str) -> list:
         }
 
         def _walk(node):
-            """
-            Look for assignment nodes where the left side is a sensitive name
-            and the right side is a string literal (hardcoded value).
-            """
-            # Python: assignment_statement / augmented_assignment
-            # JS/TS:  variable_declarator, assignment_expression
-            # Swift:  value_binding_pattern
             is_assignment = node.type in (
-                'assignment',          # Python
-                'assignment_statement',
-                'augmented_assignment',
-                'variable_declarator', # JS / TS
-                'assignment_expression',
-                'pattern_initializer', # Swift
+                'assignment', 'assignment_statement', 'augmented_assignment',
+                'variable_declarator', 'assignment_expression', 'pattern_initializer',
             )
-
             if is_assignment and len(node.children) >= 2:
                 lhs = node.children[0]
-                # Extract identifier text from the left-hand side
                 lhs_text = ''
                 if lhs.type == 'identifier':
                     lhs_text = lhs.text.decode('utf-8', errors='replace').lower()
                 elif lhs.type in ('attribute', 'member_expression'):
-                    # e.g. self.password  or  obj.token
                     for child in lhs.children:
                         if child.type == 'identifier':
                             lhs_text = child.text.decode('utf-8', errors='replace').lower()
 
                 if any(s in lhs_text for s in sensitive_names):
-                    # Check if the RHS contains a string literal
                     for child in node.children:
-                        if child.type in (
-                            'string', 'string_literal',  # Python / Swift
-                            'template_string',            # JS/TS template literals
-                            'string_fragment',
-                        ):
+                        if child.type in ('string', 'string_literal', 'template_string', 'string_fragment'):
                             val = child.text.decode('utf-8', errors='replace')
-                            # Ignore empty strings and env var lookups
-                            if len(val) > 3 and 'os.environ' not in val and 'process.env' not in val:
+                            if (len(val) > 3
+                                    and 'os.environ' not in val
+                                    and 'process.env' not in val):
                                 findings.append({
                                     'rule_id': 'AST-01-HARDCODED-SENSITIVE',
                                     'name': 'Hardcoded Sensitive Value (AST)',
                                     'description': (
                                         f"Identifier '{lhs_text}' is assigned a hardcoded "
-                                        f"string literal. Use environment variables or a "
-                                        f"secrets manager instead."
+                                        "string literal. Use environment variables instead."
                                     ),
                                     'file': file_path,
                                     'line': node.start_point[0] + 1,
@@ -186,52 +125,65 @@ def _ast_scan(file_path: str, code_bytes: bytes, parser, ext: str) -> list:
 
         _walk(root)
     except Exception as e:
-        print(f"\033[93m[AuditLens] AST scan warning for {file_path}: {e}\033[0m")
-
+        print(f'\033[93m[AuditLens] AST scan warning for {file_path}: {e}\033[0m')
     return findings
 
 
-def _should_suppress(line: str) -> bool:
+def _should_suppress(line: str, rule_id: str) -> bool:
     """
-    MISSING-05 FIX: inline suppress — any line containing
-    '# auditlens: ignore' (case-insensitive) is excluded from findings.
+    T1-4: Rule-specific suppress.
+    # auditlens: ignore          → suppress all rules on this line
+    # auditlens: ignore SEC-01   → suppress only SEC-01 on this line
     """
-    return SUPPRESS_COMMENT in line.lower()
+    lower = line.lower()
+    if 'auditlens: ignore' not in lower:
+        return False
+    import re
+    after = re.split(r'auditlens:\s*ignore', lower, maxsplit=1, flags=re.IGNORECASE)[-1]
+    rule_ids = set(re.findall(r'[A-Z0-9_-]{3,}', after.upper()))
+    return len(rule_ids) == 0 or rule_id in rule_ids
 
 
 def analyze_file(
     file_path: str,
-    rules_engine: 'RulesEngine',
-    taint_analyzer: 'TaintAnalyzer',
+    rules_engine: RulesEngine,
+    taint_analyzer: TaintAnalyzer,
     sarif_exporter=None,
     pdf_exporter=None,
     min_severity: str = 'LOW',
-    all_findings_accumulator: list | None = None,
-) -> list:
-    """
-    Analyze a single file. Returns list of findings.
-    BUG-10 FIX: errors are printed, not silently swallowed.
-    """
+    all_findings_accumulator: Optional[List[dict]] = None,
+    disabled_rules: Optional[List[str]] = None,
+    excluded_paths: Optional[List[str]] = None,
+) -> List[dict]:
+    """Analyze a single file. Returns list of findings."""
+    # T1-5: check config-excluded paths
+    if excluded_paths:
+        norm = os.path.normpath(file_path)
+        for excl in excluded_paths:
+            if norm.startswith(os.path.normpath(excl)):
+                return []
+
     ext = os.path.splitext(file_path)[1].lower()
     rules = rules_engine.get_rules_for_language(ext)
     min_rank = _SEVERITY_RANK.get(min_severity.upper(), 0)
+    disabled = set(disabled_rules or [])
 
     try:
         with open(file_path, 'r', encoding='utf-8', errors='replace') as fh:
             code_lines = fh.readlines()
             code_text = ''.join(code_lines)
     except OSError as e:
-        # BUG-10 FIX: report, don't swallow
-        print(f"\033[93m[AuditLens] Warning: cannot read {file_path}: {e}\033[0m")
+        print(f'\033[93m[AuditLens] Warning: cannot read {file_path}: {e}\033[0m')
         return []
 
-    findings: list = []
+    findings: List[dict] = []
 
     # ── 1. YAML regex rules ───────────────────────────────────────────────────
     for rule in rules:
+        if rule.id in disabled:
+            continue
         for i, line in enumerate(code_lines):
-            # MISSING-05 FIX: skip suppressed lines
-            if _should_suppress(line):
+            if _should_suppress(line, rule.id):
                 continue
             if rule.match_text(line):
                 findings.append({
@@ -244,27 +196,23 @@ def analyze_file(
                     'compliance': rule.compliance,
                 })
 
-    # ── 2. Taint analysis ────────────────────────────────────────────────────
-    taint_findings = taint_analyzer.analyze(file_path, code_lines)
-    findings.extend(taint_findings)
+    # ── 2. Taint analysis ─────────────────────────────────────────────────────
+    if 'TAINT-01' not in disabled:
+        findings.extend(taint_analyzer.analyze(file_path, code_lines))
 
-    # ── 3. Tree-sitter AST scan (BUG-11 FIX) ─────────────────────────────────
-    parser = _load_parser(ext)
-    if parser:
-        ast_findings = _ast_scan(file_path, code_text.encode('utf-8'), parser, ext)
-        findings.extend(ast_findings)
+    # ── 3. Tree-sitter AST scan ───────────────────────────────────────────────
+    if 'AST-01-HARDCODED-SENSITIVE' not in disabled:
+        parser = _load_parser(ext)
+        if parser:
+            findings.extend(_ast_scan(file_path, code_text.encode('utf-8'), parser))
 
-    # ── 4. Filter by min severity and emit ───────────────────────────────────
+    # ── 4. Filter, print, accumulate ─────────────────────────────────────────
     for finding in findings:
         rank = _SEVERITY_RANK.get(finding['severity'].upper(), 0)
         if rank < min_rank:
             continue
 
-        color = (
-            '\033[91m'
-            if finding['severity'] in ('CRITICAL', 'HIGH')
-            else '\033[93m'
-        )
+        color = '\033[91m' if finding['severity'] in ('CRITICAL', 'HIGH') else '\033[93m'
         print(
             f"{color}[{finding['rule_id']}] {finding['file']}:{finding['line']} "
             f"— {finding['name']}\033[0m"
@@ -286,22 +234,35 @@ def run_static_analysis(
     path: str,
     export_sarif: bool = False,
     export_pdf: bool = False,
-    output_path: str | None = None,
+    export_json: bool = False,
+    output_path: Optional[str] = None,
     min_severity: str = 'LOW',
     run_sca: bool = True,
+    save_baseline: Optional[str] = None,
+    diff_baseline: Optional[str] = None,
+    record_history: bool = True,
 ) -> int:
     """
-    MISSING-01 FIX: returns exit code.
-      0 = no findings at or above min_severity
-      1 = findings found
+    Run full analysis. Returns exit code:
+      0 = no findings
+      1 = findings found (or new findings vs baseline)
       2 = path does not exist
-    UX-01: messages in English.
-    UX-02: summary at the end.
     """
-    print(f"\033[94m[AuditLens]\033[0m Starting scan: {path}\n")
+    from .config import load_config
+
+    # Load project config (.auditlens.yaml)
+    search_dir = path if os.path.isdir(path) else os.path.dirname(path)
+    cfg = load_config(search_dir)
+
+    # CLI flags override config
+    effective_min_severity = min_severity if min_severity != 'LOW' else cfg.min_severity
+    effective_sca = run_sca and cfg.sca
+    effective_baseline = diff_baseline or cfg.baseline
+
+    print(f'\033[94m[AuditLens]\033[0m Starting scan: {path}\n')
 
     if not os.path.exists(path):
-        print(f"\033[91m[ERROR]\033[0m Path does not exist: {path}")
+        print(f'\033[91m[ERROR]\033[0m Path does not exist: {path}')
         return 2
 
     rules_engine = RulesEngine()
@@ -317,17 +278,17 @@ def run_static_analysis(
         from .pdf_exporter import PdfExporter
         pdf_exporter = PdfExporter()
 
-    all_findings: list = []
+    all_findings: List[dict] = []
 
-    # ── SCA ──────────────────────────────────────────────────────────────────
-    if run_sca:
-        print("\033[94m[AuditLens]\033[0m Running Software Composition Analysis (SCA)...")
+    # ── SCA ───────────────────────────────────────────────────────────────────
+    if effective_sca:
+        print('\033[94m[AuditLens]\033[0m Running Software Composition Analysis (SCA)...')
         sca_engine = SCAEngine()
         sca_path = path if os.path.isdir(path) else os.path.dirname(path)
         sca_findings = sca_engine.analyze_directory(sca_path)
+        min_rank = _SEVERITY_RANK.get(effective_min_severity, 0)
         for finding in sca_findings:
-            rank = _SEVERITY_RANK.get(finding['severity'].upper(), 0)
-            if rank < _SEVERITY_RANK.get(min_severity.upper(), 0):
+            if _SEVERITY_RANK.get(finding['severity'].upper(), 0) < min_rank:
                 continue
             color = '\033[91m'
             print(
@@ -342,15 +303,24 @@ def run_static_analysis(
                 pdf_exporter.add_finding(finding)
             all_findings.append(finding)
 
-    # ── SAST ─────────────────────────────────────────────────────────────────
-    print("\033[94m[AuditLens]\033[0m Running Static Analysis (SAST)...")
+    # ── SAST ──────────────────────────────────────────────────────────────────
+    print('\033[94m[AuditLens]\033[0m Running Static Analysis (SAST)...')
+
+    common_kwargs: Dict = dict(
+        rules_engine=rules_engine,
+        taint_analyzer=taint_analyzer,
+        sarif_exporter=sarif_exporter,
+        pdf_exporter=pdf_exporter,
+        min_severity=effective_min_severity,
+        all_findings_accumulator=all_findings,
+        disabled_rules=cfg.disable_rules,
+        excluded_paths=cfg.exclude_paths,
+    )
+
     if os.path.isfile(path):
         ext = os.path.splitext(path)[1].lower()
         if ext in _SUPPORTED_EXTENSIONS:
-            analyze_file(
-                path, rules_engine, taint_analyzer,
-                sarif_exporter, pdf_exporter, min_severity, all_findings,
-            )
+            analyze_file(path, **common_kwargs)
     elif os.path.isdir(path):
         exclude_dirs = {
             'venv', 'env', '.env', '.git', '__pycache__',
@@ -359,25 +329,40 @@ def run_static_analysis(
         for root, dirs, files in os.walk(path):
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
             for fname in files:
-                ext = os.path.splitext(fname)[1].lower()
-                if ext in _SUPPORTED_EXTENSIONS:
-                    analyze_file(
-                        os.path.join(root, fname),
-                        rules_engine, taint_analyzer,
-                        sarif_exporter, pdf_exporter, min_severity, all_findings,
-                    )
+                if os.path.splitext(fname)[1].lower() in _SUPPORTED_EXTENSIONS:
+                    analyze_file(os.path.join(root, fname), **common_kwargs)
 
-    # ── UX-02: Summary ───────────────────────────────────────────────────────
-    total = len(all_findings)
+    # ── Baseline / diff (T1-2) ────────────────────────────────────────────────
+    reported_findings = all_findings
+
+    if save_baseline:
+        from .baseline import save_baseline as _save
+        _save(all_findings, save_baseline)
+
+    if effective_baseline and not save_baseline:
+        from .baseline import load_baseline, diff_against_baseline
+        baseline = load_baseline(effective_baseline)
+        if baseline is not None:
+            new_findings = diff_against_baseline(all_findings, baseline)
+            dropped = len(all_findings) - len(new_findings)
+            if dropped:
+                print(
+                    f'\033[90m[AuditLens] Baseline: {dropped} known findings suppressed, '
+                    f'{len(new_findings)} new.\033[0m'
+                )
+            reported_findings = new_findings
+
+    # ── Summary ───────────────────────────────────────────────────────────────
     counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
-    for f in all_findings:
+    for f in reported_findings:
         sev = f['severity'].upper()
         if sev in counts:
             counts[sev] += 1
 
-    print(f"\n\033[92m[AuditLens]\033[0m Scan complete.")
+    total = len(reported_findings)
+    print(f'\n\033[92m[AuditLens]\033[0m Scan complete.')
     print(
-        f"   Total findings: {total}  "
+        f"   Total: {total}  "
         f"(\033[91mCRITICAL:{counts['CRITICAL']}  HIGH:{counts['HIGH']}\033[0m  "
         f"\033[93mMEDIUM:{counts['MEDIUM']}\033[0m  "
         f"\033[90mLOW:{counts['LOW']}\033[0m)"
@@ -385,11 +370,30 @@ def run_static_analysis(
 
     # ── Export ────────────────────────────────────────────────────────────────
     if sarif_exporter:
-        out = output_path or 'audit_results.sarif'
-        sarif_exporter.export(out)
+        sarif_exporter.export(output_path or 'audit_results.sarif')
 
     if pdf_exporter:
-        out = output_path or 'audit_report.pdf'
-        pdf_exporter.generate_report(out)
+        pdf_exporter.generate_report(output_path or 'audit_report.pdf')
 
-    return 1 if all_findings else 0
+    # T2-3: JSON output
+    if export_json:
+        json_path = output_path or 'audit_results.json'
+        with open(json_path, 'w', encoding='utf-8') as fh:
+            json.dump(reported_findings, fh, indent=2, default=str)
+        print(f'\033[92m[AuditLens]\033[0m JSON report saved: \033[1m{os.path.abspath(json_path)}\033[0m')
+
+    # T3-3: persist history
+    if record_history and all_findings is not None:
+        try:
+            from .history import record_scan
+            record_scan(path, all_findings)
+        except Exception:
+            pass  # history is non-critical
+
+    # T1-2: respect fail_on from config
+    fail_rank = _SEVERITY_RANK.get(cfg.fail_on, 0)
+    has_critical_findings = any(
+        _SEVERITY_RANK.get(f['severity'].upper(), 0) >= fail_rank
+        for f in reported_findings
+    )
+    return 1 if has_critical_findings else 0

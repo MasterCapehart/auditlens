@@ -6,9 +6,12 @@ Changes vs original:
 - MISSING-08: TypeScript (.ts, .tsx) mapped to 'typescript' language tag
 """
 
+from __future__ import annotations
+
 import yaml
 import re
 import os
+from typing import List, Optional
 
 
 class Rule:
@@ -46,7 +49,7 @@ class RulesEngine:
             rules_file = os.path.join(base_dir, 'rules.yaml')
         self._load_rules(rules_file)
 
-    def _load_rules(self, rules_file: str):
+    def _load_rules(self, rules_file: str) -> None:
         if not os.path.exists(rules_file):
             print(
                 f"\033[93m[AuditLens] Warning: rules file not found at "
@@ -70,7 +73,7 @@ class RulesEngine:
 
         print(f"\033[90m[AuditLens] Loaded {len(self.rules)} rules.\033[0m")
 
-    def get_rules_for_language(self, ext: str) -> list[Rule]:
+    def get_rules_for_language(self, ext: str) -> List[Rule]:
         # MISSING-08 FIX: TypeScript mapped properly
         ext_to_lang = {
             '.py': 'python',

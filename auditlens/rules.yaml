@@ -230,3 +230,224 @@ rules:
     regex_pattern: "os\\.chmod\\s*\\([^,]+,\\s*0o(?:777|666|775|664)"
     compliance: ["OWASP-A1:2021", "CWE-732"]
     severity: "MEDIUM"
+
+  # ── JWT Security ──────────────────────────────────────────────────────────────
+  - id: "SEC-06-JWT-VERIFY-FALSE"
+    name: "JWT Signature Verification Disabled"
+    description: >
+      Disabling JWT signature verification (verify_signature=False or options={"verify_exp":False})
+      allows attackers to forge arbitrary tokens without a valid secret.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:verify_signature\\s*:\\s*False|verify\\s*=\\s*False|options\\s*=\\s*\\{[^}]*verify)"
+    compliance: ["OWASP-A2:2021", "CWE-347"]
+    severity: "CRITICAL"
+
+  - id: "SEC-07-JWT-NONE-ALGORITHM"
+    name: "JWT 'none' Algorithm"
+    description: >
+      Using algorithm='none' in JWT signing creates unsigned tokens that any
+      verifier accepting 'none' will accept. Always specify RS256 or HS256.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)algorithm\\s*=\\s*[\"']none[\"']"
+    compliance: ["OWASP-A2:2021", "CWE-347", "CVE-2015-9235"]
+    severity: "CRITICAL"
+
+  # ── Cloud Credentials ─────────────────────────────────────────────────────────
+  - id: "SEC-08-AWS-ACCESS-KEY"
+    name: "Hardcoded AWS Access Key ID"
+    description: >
+      AWS access key IDs beginning with AKIA followed by 16 uppercase alphanumeric
+      characters detected in source code. Rotate the key immediately and use IAM roles.
+    languages: ["python", "javascript", "typescript", "swift"]
+    regex_pattern: "AKIA[0-9A-Z]{16}"
+    compliance: ["OWASP-A7:2021", "CWE-798", "AWS Security Best Practices"]
+    severity: "CRITICAL"
+
+  - id: "SEC-09-GITHUB-TOKEN"
+    name: "Hardcoded GitHub Token"
+    description: >
+      GitHub personal access tokens (ghp_, gho_, github_pat_) detected in source.
+      Revoke the token immediately and use GitHub Secrets or OIDC instead.
+    languages: ["python", "javascript", "typescript", "swift"]
+    regex_pattern: "(?:ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)[A-Za-z0-9_]{20,}"
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "CRITICAL"
+
+  - id: "SEC-10-SLACK-WEBHOOK"
+    name: "Hardcoded Slack Webhook URL"
+    description: >
+      Slack Incoming Webhook URLs detected in source. Revoke immediately.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "https://hooks\\.slack\\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+"
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "HIGH"
+
+  # ── Template Injection ────────────────────────────────────────────────────────
+  - id: "INJ-06-TEMPLATE-INJECTION"
+    name: "Server-Side Template Injection (SSTI)"
+    description: >
+      User-controlled strings passed directly to Jinja2 Template() or
+      render_template_string() allow arbitrary code execution on the server.
+    languages: ["python"]
+    regex_pattern: "(?i)(?:jinja2\\.Template|render_template_string)\\s*\\([^)]*(?:request|user_input|data|params|args)"
+    compliance: ["OWASP-A3:2021", "CWE-94"]
+    severity: "CRITICAL"
+
+  # ── NoSQL Injection ───────────────────────────────────────────────────────────
+  - id: "INJ-07-NOSQL-INJECTION"
+    name: "Potential NoSQL Injection"
+    description: >
+      MongoDB $where, $regex, or similar operators built from user input
+      allow query injection. Use parameterised queries.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)\\$(?:where|regex|gt|lt|ne|in|nin|exists).*(?:request|user_input|req\\.|params)"
+    compliance: ["OWASP-A3:2021", "CWE-943"]
+    severity: "HIGH"
+
+  # ── Insecure Deserialization (additional) ─────────────────────────────────────
+  - id: "DESER-03-MARSHAL"
+    name: "Insecure Deserialization: marshal"
+    description: >
+      marshal.loads() / marshal.load() executes arbitrary Python code just like
+      pickle. Use JSON for untrusted data.
+    languages: ["python"]
+    regex_pattern: "(?i)marshal\\.loads?\\s*\\("
+    compliance: ["OWASP-A8:2021", "CWE-502"]
+    severity: "CRITICAL"
+
+  # ── Web Framework Misconfigurations ───────────────────────────────────────────
+  - id: "CONF-04-FLASK-DEBUG"
+    name: "Flask Debug Mode in Code"
+    description: >
+      app.run(debug=True) exposes an interactive debugger with code execution
+      capabilities to anyone who can reach the server.
+    languages: ["python"]
+    regex_pattern: "app\\.run\\s*\\([^)]*debug\\s*=\\s*True"
+    compliance: ["OWASP-A5:2021", "CWE-94"]
+    severity: "CRITICAL"
+
+  - id: "CONF-05-DJANGO-ALLOWED-HOSTS"
+    name: "Django ALLOWED_HOSTS Wildcard"
+    description: >
+      ALLOWED_HOSTS = ['*'] disables Django's Host header validation,
+      enabling Host header injection attacks.
+    languages: ["python"]
+    regex_pattern: "ALLOWED_HOSTS\\s*=\\s*\\[\\s*['\"]\\*['\"]\\s*\\]"
+    compliance: ["OWASP-A5:2021", "CWE-693"]
+    severity: "HIGH"
+
+  - id: "CONF-06-DJANGO-SECRET-KEY"
+    name: "Django SECRET_KEY Hardcoded"
+    description: >
+      A hardcoded Django SECRET_KEY in settings.py allows session forgery and
+      other cryptographic attacks. Use environment variables.
+    languages: ["python"]
+    regex_pattern: "SECRET_KEY\\s*=\\s*[\"'][^\"']{8,}[\"']"
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "CRITICAL"
+
+  # ── Cryptography Misuse ───────────────────────────────────────────────────────
+  - id: "CRYPTO-01-DES-USAGE"
+    name: "Broken Cipher: DES / 3DES"
+    description: >
+      DES and 3DES are broken and deprecated. Migrate to AES-256-GCM.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:DES|TripleDES|3DES|Cipher\\.DES)\\s*[.(]"
+    compliance: ["OWASP-A2:2021", "CWE-327", "NIST SP 800-131A"]
+    severity: "HIGH"
+
+  - id: "CRYPTO-02-AES-ECB"
+    name: "AES in ECB Mode"
+    description: >
+      AES ECB mode does not use an IV and produces deterministic ciphertext,
+      leaking data patterns. Use AES-GCM or AES-CBC with a random IV.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:AES\\.MODE_ECB|createCipheriv\\s*\\([^)]*['\"]aes[^'\"]*-ecb)"
+    compliance: ["OWASP-A2:2021", "CWE-327"]
+    severity: "HIGH"
+
+  - id: "CRYPTO-03-RC4-USAGE"
+    name: "Broken Cipher: RC4"
+    description: >
+      RC4 is cryptographically broken and banned by RFC 7465. Use AES-GCM.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)\\bRC4\\b|Cipher\\.RC4"
+    compliance: ["OWASP-A2:2021", "CWE-327", "RFC 7465"]
+    severity: "HIGH"
+
+  # ── Unsafe Redirects ─────────────────────────────────────────────────────────
+  - id: "AUTH-03-OPEN-REDIRECT"
+    name: "Potential Open Redirect"
+    description: >
+      Redirecting to a URL constructed from user input without validation
+      enables phishing attacks via trusted domain redirects.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:redirect|location|window\\.location)\\s*[=(]\\s*(?:request|req\\.|params|args)"
+    compliance: ["OWASP-A1:2021", "CWE-601"]
+    severity: "MEDIUM"
+
+  # ── Prototype Pollution ───────────────────────────────────────────────────────
+  - id: "INJ-08-PROTOTYPE-POLLUTION"
+    name: "Potential Prototype Pollution"
+    description: >
+      Assigning to __proto__ or using Object.assign/merge with user-controlled
+      keys can pollute the Object prototype chain.
+    languages: ["javascript", "typescript"]
+    regex_pattern: "(?i)(?:__proto__|constructor\\s*\\[|Object\\.assign\\s*\\([^)]*(?:req\\.|request|params))"
+    compliance: ["OWASP-A3:2021", "CWE-915"]
+    severity: "HIGH"
+
+  # ── Logging / Monitoring ──────────────────────────────────────────────────────
+  - id: "DATA-03-FULL-REQUEST-LOG"
+    name: "Full Request Body Logged"
+    description: >
+      Logging the entire request body (req.body / request.data) may capture
+      passwords, credit card numbers, and other PII in log files.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:console\\.log|logging\\.\\w+|print)\\s*\\([^)]*(?:req\\.body|request\\.data|request\\.form)"
+    compliance: ["OWASP-A9:2021", "CWE-532", "GDPR Art. 5"]
+    severity: "MEDIUM"
+
+  # ── XML / XXE ────────────────────────────────────────────────────────────────
+  - id: "INJ-09-XXE"
+    name: "XML External Entity (XXE) Injection"
+    description: >
+      Parsing XML with external entity resolution enabled allows reading
+      arbitrary files and SSRF. Use defusedxml or disable external entities.
+    languages: ["python"]
+    regex_pattern: "(?i)(?:etree\\.parse|minidom\\.parse|SAXParser|XMLParser)\\s*\\("
+    compliance: ["OWASP-A5:2021", "CWE-611"]
+    severity: "HIGH"
+
+  # ── Regex DoS ────────────────────────────────────────────────────────────────
+  - id: "CONF-07-REGEX-DOS"
+    name: "Potential Regular Expression Denial of Service (ReDoS)"
+    description: >
+      Complex or nested quantifiers in regular expressions applied to untrusted
+      input can cause catastrophic backtracking.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "re\\.(?:compile|match|search|fullmatch)\\s*\\([^)]*(?:\\(.*\\*|\\+.*\\+|\\{\\d+,\\})"
+    compliance: ["OWASP-A6:2021", "CWE-400"]
+    severity: "MEDIUM"
+
+  # ── Hardcoded Private Keys / Certificates ────────────────────────────────────
+  - id: "SEC-11-PRIVATE-KEY-BLOCK"
+    name: "Private Key in Source Code"
+    description: >
+      PEM-encoded private key block detected in source code.
+      Remove immediately and use a secrets manager.
+    languages: ["python", "javascript", "typescript", "swift"]
+    regex_pattern: "-----BEGIN (?:RSA |EC )?PRIVATE KEY-----"
+    compliance: ["OWASP-A7:2021", "CWE-321"]
+    severity: "CRITICAL"
+
+  # ── Timing Attacks ────────────────────────────────────────────────────────────
+  - id: "AUTH-04-TIMING-ATTACK"
+    name: "Unsafe String Comparison for Secrets"
+    description: >
+      Using == or != to compare secrets, tokens, or passwords is vulnerable
+      to timing attacks. Use hmac.compare_digest() or secrets.compare_digest().
+    languages: ["python"]
+    regex_pattern: "(?i)(?:password|token|secret|api_key)\\s*(?:==|!=)\\s*['\"]"
+    compliance: ["OWASP-A2:2021", "CWE-208"]
+    severity: "MEDIUM"
