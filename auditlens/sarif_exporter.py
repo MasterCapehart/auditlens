@@ -72,8 +72,11 @@ class SarifExporter:
         }
         self.sarif_log["runs"][0]["results"].append(result)
 
-    def export(self, output_path="audit_results.sarif"):
+    def export(self, output_path: str = "audit_results.sarif"):
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(self.sarif_log, f, indent=2)
-        print(f"\n\033[92m[DevSecOps]\033[0m Reporte SARIF exportado con éxito a: \033[1m{os.path.abspath(output_path)}\033[0m")
-        print("Puedes subir este archivo a GitHub Security, GitLab CI o SonarQube.")
+        print(
+            f"\n\033[92m[AuditLens]\033[0m SARIF report saved: "
+            f"\033[1m{os.path.abspath(output_path)}\033[0m"
+        )
+        print("Upload to GitHub Security, GitLab CI, or SonarQube for dashboard integration.")

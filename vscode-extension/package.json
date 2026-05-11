@@ -1,0 +1,43 @@
+{
+  "name": "auditlens-extension",
+  "displayName": "AuditLens",
+  "description": "Herramienta Integral de Análisis SAST y Diagnóstico Post-Mortem",
+  "version": "0.0.2",
+  "publisher": "auditlens",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danielflores/auditlens"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:swift"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "auditlens.runPostMortem",
+        "title": "Run with AuditLens"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {}
+}

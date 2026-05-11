@@ -1,24 +1,232 @@
 rules:
+
+  # ── Hardcoded Secrets ────────────────────────────────────────────────────────
   - id: "SEC-01-HARDCODED-SECRET"
     name: "Hardcoded Secret (Passwords, Tokens, Keys)"
-    description: "Detecta secretos en texto plano (contraseñas, tokens de APIs) hardcodeados en el código."
-    languages: ["python", "javascript", "swift"]
-    regex_pattern: "(?i)(password|secret|token|api_key|apikey)\\s*(=|:)\\s*[\"'][^\"']+[\"']"
-    compliance: ["OWASP-A7", "ISO-27001:A.9"]
+    description: >
+      Detects plaintext secrets hardcoded directly in source code (passwords,
+      API keys, tokens). Use environment variables or a secrets manager instead.
+    languages: ["python", "javascript", "typescript", "swift"]
+    regex_pattern: "(?i)(password|passwd|pwd|secret|token|api_key|apikey|auth_key|private_key|access_key|client_secret)\\s*(=|:)\\s*[\"'][^\"']{3,}[\"']"
+    compliance: ["OWASP-A7:2021", "CWE-798", "ISO-27001:A.9"]
     severity: "HIGH"
 
-  - id: "COMP-01-SENSITIVE-DATA-RUT"
-    name: "Manejo de Dato Sensible (RUT)"
-    description: "Detecta el uso o manipulación de la variable 'RUT' que debe ser ofuscada."
-    languages: ["python", "javascript", "swift"]
-    regex_pattern: "(?i)\\brut\\b"
-    compliance: ["Ley N° 19.628 (Chile)", "GDPR Art. 5"]
+  # ── Weak Cryptography ────────────────────────────────────────────────────────
+  - id: "SEC-02-MD5-USAGE"
+    name: "Weak Hashing Algorithm: MD5"
+    description: >
+      MD5 is cryptographically broken and unsuitable for password hashing or
+      integrity verification. Use SHA-256, SHA-3, or bcrypt/argon2 for passwords.
+    languages: ["python", "javascript", "typescript", "swift"]
+    regex_pattern: "(?i)(?:hashlib\\.)?md5\\s*\\("
+    compliance: ["OWASP-A2:2021", "CWE-327", "PCI-DSS 6.3.3"]
+    severity: "HIGH"
+
+  - id: "SEC-03-SHA1-USAGE"
+    name: "Weak Hashing Algorithm: SHA-1"
+    description: >
+      SHA-1 is deprecated for cryptographic use. Migrate to SHA-256 or stronger.
+    languages: ["python", "javascript", "typescript", "swift"]
+    regex_pattern: "(?i)(?:hashlib\\.)?sha1\\s*\\("
+    compliance: ["OWASP-A2:2021", "CWE-327", "NIST SP 800-131A"]
     severity: "MEDIUM"
 
-  - id: "SEC-02-MD5-USAGE"
-    name: "Uso de Algoritmo Débil MD5"
-    description: "MD5 es criptográficamente inseguro. Usar SHA-256 o bcrypt."
-    languages: ["python", "javascript", "swift"]
-    regex_pattern: "(?i)md5\\("
-    compliance: ["OWASP-A2", "PCI-DSS"]
+  - id: "SEC-04-WEAK-RANDOM"
+    name: "Insecure Random Number Generator"
+    description: >
+      Math.random() / random.random() are not cryptographically secure and must
+      not be used for security tokens, passwords, or session IDs.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:math\\.random|random\\.random|random\\.randint)\\s*\\("
+    compliance: ["OWASP-A2:2021", "CWE-338"]
+    severity: "MEDIUM"
+
+  - id: "SEC-05-INSECURE-TLS"
+    name: "TLS Verification Disabled"
+    description: >
+      Setting verify=False or rejectUnauthorized:false disables TLS certificate
+      validation, making connections vulnerable to MITM attacks.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:verify\\s*=\\s*False|rejectUnauthorized\\s*:\\s*false|NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*[\"']0[\"'])"
+    compliance: ["OWASP-A2:2021", "CWE-295", "PCI-DSS 6.2.4"]
+    severity: "CRITICAL"
+
+  # ── Injection ────────────────────────────────────────────────────────────────
+  - id: "INJ-01-SQL-INJECTION"
+    name: "Potential SQL Injection"
+    description: >
+      String formatting or concatenation used to build SQL queries. Use
+      parameterised queries / prepared statements instead.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:execute|query|raw)\\s*\\(\\s*[\"'f].*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|JOIN|DROP|UNION)"
+    compliance: ["OWASP-A3:2021", "CWE-89", "PCI-DSS 6.3.1"]
+    severity: "CRITICAL"
+
+  - id: "INJ-02-COMMAND-INJECTION"
+    name: "Potential Command Injection"
+    description: >
+      Shell commands constructed from user-controlled input. Use subprocess with
+      a list of arguments (no shell=True) and validate all inputs.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:os\\.system|subprocess\\.(?:call|run|Popen)|exec|execSync|spawnSync|child_process\\.exec)\\s*\\((?:[^)]*\\+|f[\"'][^)]*\\{)"
+    compliance: ["OWASP-A3:2021", "CWE-78"]
+    severity: "CRITICAL"
+
+  - id: "INJ-03-XSS-INNER-HTML"
+    name: "Potential Cross-Site Scripting (XSS) — innerHTML"
+    description: >
+      Assigning unsanitised values to innerHTML or document.write() can allow
+      script injection. Use textContent or a DOM sanitiser.
+    languages: ["javascript", "typescript"]
+    regex_pattern: "(?i)(?:innerHTML|outerHTML|document\\.write)\\s*(?:=|\\+=)\\s*(?!\\s*[\"'])"
+    compliance: ["OWASP-A3:2021", "CWE-79"]
     severity: "HIGH"
+
+  - id: "INJ-04-EVAL-USAGE"
+    name: "Use of eval()"
+    description: >
+      eval() executes arbitrary code and is a common injection vector.
+      Refactor to avoid dynamic code execution.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?<![a-zA-Z_])eval\\s*\\("
+    compliance: ["OWASP-A3:2021", "CWE-95"]
+    severity: "HIGH"
+
+  - id: "INJ-05-LDAP-INJECTION"
+    name: "Potential LDAP Injection"
+    description: >
+      Unsanitised user input in LDAP filter strings. Escape special characters
+      per RFC 4515 before building filter expressions.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:search|bind|modify)\\s*\\(.*(?:\\+|f[\"']).*(?:dc=|cn=|ou=)"
+    compliance: ["OWASP-A3:2021", "CWE-90"]
+    severity: "HIGH"
+
+  # ── Path Traversal ────────────────────────────────────────────────────────────
+  - id: "PT-01-PATH-TRAVERSAL"
+    name: "Potential Path Traversal"
+    description: >
+      File paths constructed from user input without normalisation allow attackers
+      to escape the intended directory (../ sequences). Use os.path.realpath and
+      validate that the result is within the expected directory.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:open|readFile|readFileSync|send(?:File)?)\\s*\\((?:[^)]*\\+|f[\"'][^)]*\\{|[^)]*request|[^)]*req\\.)"
+    compliance: ["OWASP-A1:2021", "CWE-22"]
+    severity: "HIGH"
+
+  # ── Insecure Deserialization ──────────────────────────────────────────────────
+  - id: "DESER-01-PICKLE"
+    name: "Insecure Deserialization: pickle"
+    description: >
+      pickle.loads() / pickle.load() on untrusted data allows arbitrary code
+      execution. Use JSON or a safe format for data exchange.
+    languages: ["python"]
+    regex_pattern: "(?i)pickle\\.loads?\\s*\\("
+    compliance: ["OWASP-A8:2021", "CWE-502"]
+    severity: "CRITICAL"
+
+  - id: "DESER-02-YAML-LOAD"
+    name: "Insecure YAML Deserialization"
+    description: >
+      yaml.load() without Loader=yaml.SafeLoader allows execution of arbitrary
+      Python objects. Use yaml.safe_load() instead.
+    languages: ["python"]
+    regex_pattern: "yaml\\.load\\s*\\([^)]*(?!SafeLoader|Loader=yaml\\.SafeLoader)"
+    compliance: ["OWASP-A8:2021", "CWE-502"]
+    severity: "HIGH"
+
+  # ── SSRF ─────────────────────────────────────────────────────────────────────
+  - id: "SSRF-01-USER-URL"
+    name: "Potential Server-Side Request Forgery (SSRF)"
+    description: >
+      HTTP requests made with URLs derived from user input. Validate and allowlist
+      target hosts to prevent internal network access.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:requests\\.(?:get|post|put|patch|delete)|fetch|axios\\.(?:get|post))\\s*\\((?:[^)]*\\+|f[\"'][^)]*\\{|[^)]*request|[^)]*req\\.)"
+    compliance: ["OWASP-A10:2021", "CWE-918"]
+    severity: "HIGH"
+
+  # ── Sensitive Data ────────────────────────────────────────────────────────────
+  - id: "COMP-01-SENSITIVE-DATA-RUT"
+    name: "Sensitive Data Handling: RUT (Chilean National ID)"
+    description: >
+      Detects handling of the 'RUT' personal identifier. This data is regulated
+      under Ley N° 19.628 (Chile) and GDPR Art. 5. Ensure it is encrypted or
+      hashed before storage and never logged in plaintext.
+    languages: ["python", "javascript", "typescript", "swift"]
+    regex_pattern: "(?i)\\brut\\b"
+    compliance: ["Ley N° 19.628 (Chile)", "GDPR Art. 5", "CWE-312"]
+    severity: "MEDIUM"
+
+  - id: "DATA-01-SENSITIVE-LOGGING"
+    name: "Sensitive Data in Log Statement"
+    description: >
+      Log statements that may include passwords, tokens, or secrets.
+      Sanitise or mask sensitive values before logging.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:print|console\\.(?:log|info|warn|error)|logging\\.(?:info|debug|warning|error))\\s*\\([^)]*(?:password|passwd|token|secret|api_key|apikey)"
+    compliance: ["OWASP-A9:2021", "CWE-532", "GDPR Art. 5"]
+    severity: "HIGH"
+
+  - id: "DATA-02-HARDCODED-IP"
+    name: "Hardcoded IP Address"
+    description: >
+      Hardcoded IP addresses indicate non-configurable infrastructure references
+      and may expose internal network topology.
+    languages: ["python", "javascript", "typescript", "swift"]
+    regex_pattern: "(?<![\\w.])(?:[0-9]{1,3}\\.){3}[0-9]{1,3}(?![\\w.])"
+    compliance: ["OWASP-A5:2021", "CWE-284"]
+    severity: "LOW"
+
+  # ── Security Misconfigurations ────────────────────────────────────────────────
+  - id: "CONF-01-DEBUG-ENABLED"
+    name: "Debug Mode Enabled"
+    description: >
+      Running with DEBUG=True / debug=True in production exposes stack traces
+      and internal state to end users.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)(?:DEBUG|debug)\\s*=\\s*True"
+    compliance: ["OWASP-A5:2021", "CWE-94"]
+    severity: "MEDIUM"
+
+  - id: "CONF-02-CORS-WILDCARD"
+    name: "CORS Wildcard Origin"
+    description: >
+      Setting Access-Control-Allow-Origin: * allows any domain to make
+      cross-origin requests to your API.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?i)Access-Control-Allow-Origin[\"']?\\s*[,:]\\s*[\"']?\\*"
+    compliance: ["OWASP-A5:2021", "CWE-942"]
+    severity: "MEDIUM"
+
+  - id: "CONF-03-HARDCODED-CREDENTIALS-URL"
+    name: "Credentials in URL"
+    description: >
+      URLs containing embedded usernames and passwords expose credentials
+      in logs, browser history, and referrer headers.
+    languages: ["python", "javascript", "typescript", "swift"]
+    regex_pattern: "(?i)[a-z][a-z0-9+\\-.]*://[^@/\\s]+:[^@/\\s]+@"
+    compliance: ["OWASP-A7:2021", "CWE-312"]
+    severity: "HIGH"
+
+  # ── Broken Access Control ────────────────────────────────────────────────────
+  - id: "AUTH-01-SHELL-TRUE"
+    name: "Subprocess with shell=True"
+    description: >
+      shell=True expands shell metacharacters in the command string and is
+      equivalent to passing input through /bin/sh, enabling command injection.
+      Pass arguments as a list and set shell=False.
+    languages: ["python"]
+    regex_pattern: "subprocess\\.(?:run|call|Popen|check_output)\\s*\\([^)]*shell\\s*=\\s*True"
+    compliance: ["OWASP-A1:2021", "CWE-78"]
+    severity: "HIGH"
+
+  - id: "AUTH-02-PERMISSIVE-CHMOD"
+    name: "Overly Permissive File Permission"
+    description: >
+      Setting file permissions to 0o777 or 0o666 grants world-read/write access
+      and may expose sensitive files.
+    languages: ["python"]
+    regex_pattern: "os\\.chmod\\s*\\([^,]+,\\s*0o(?:777|666|775|664)"
+    compliance: ["OWASP-A1:2021", "CWE-732"]
+    severity: "MEDIUM"

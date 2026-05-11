@@ -1,9 +1,49 @@
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
 __pycache__/
-*.pdf
-*.sarif
-build/
-dist/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
 *.egg-info/
+dist/
+build/
+.eggs/
+.tox/
+.venv/
 venv/
 env/
+.env/
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Generated output artifacts
+*.sarif
+*.pdf
+
+# VS Code Extension
+vscode-extension/node_modules/
+vscode-extension/out/
+vscode-extension/*.vsix
+vscode-extension/src/*.js
+vscode-extension/src/*.js.map
+vscode-extension/src/*.d.ts
+vscode-extension/src/*.d.ts.map
+
+# temp / debug
+temp.json
+*.log
+*.tmp
+auditlens_ipc_*.key
+
+# Editor
+.idea/
+*.swp
+*.swo
