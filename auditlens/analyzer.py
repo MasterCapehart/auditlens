@@ -24,7 +24,10 @@ from .sca_engine import SCAEngine
 # ── Parser cache (PERF-03) ────────────────────────────────────────────────────
 _PARSER_CACHE: Dict[str, object] = {}
 
-_SUPPORTED_EXTENSIONS = {'.py', '.js', '.jsx', '.ts', '.tsx', '.swift'}
+_SUPPORTED_EXTENSIONS = {
+    '.py', '.js', '.jsx', '.ts', '.tsx', '.swift',
+    '.go', '.java', '.kt', '.rb',
+}
 
 _SEVERITY_RANK = {'LOW': 0, 'MEDIUM': 1, 'HIGH': 2, 'CRITICAL': 3}
 
@@ -241,6 +244,7 @@ def run_static_analysis(
     save_baseline: Optional[str] = None,
     diff_baseline: Optional[str] = None,
     record_history: bool = True,
+    interprocedural: bool = False,
 ) -> int:
     """
     Run full analysis. Returns exit code:
@@ -332,6 +336,31 @@ def run_static_analysis(
                 if os.path.splitext(fname)[1].lower() in _SUPPORTED_EXTENSIONS:
                     analyze_file(os.path.join(root, fname), **common_kwargs)
 
+    # ── Inter-procedural taint (optional, Python only) ────────────────────────
+    if interprocedural and os.path.isdir(path):
+        print('\033[94m[AuditLens]\033[0m Running Inter-Procedural Taint Analysis...')
+        try:
+            from .taint_interprocedural import InterProceduralTaintAnalyzer
+            ip_analyzer = InterProceduralTaintAnalyzer()
+            ip_analyzer.load_directory(path)
+            ip_findings = ip_analyzer.analyze()
+            min_rank = _SEVERITY_RANK.get(effective_min_severity, 0)
+            for finding in ip_findings:
+                if _SEVERITY_RANK.get(finding['severity'].upper(), 0) < min_rank:
+                    continue
+                color = '\033[91m'
+                print(
+                    f"{color}[{finding['rule_id']}] {finding['file']}:{finding['line']} "
+                    f"— {finding['name']}\033[0m"
+                )
+                if sarif_exporter:
+                    sarif_exporter.add_finding(finding)
+                if pdf_exporter:
+                    pdf_exporter.add_finding(finding)
+                all_findings.append(finding)
+        except Exception as exc:
+            print(f'\033[93m[AuditLens] Inter-procedural taint warning: {exc}\033[0m')
+
     # ── Baseline / diff (T1-2) ────────────────────────────────────────────────
     reported_findings = all_findings
 
@@ -389,6 +418,16 @@ def run_static_analysis(
             record_scan(path, all_findings)
         except Exception:
             pass  # history is non-critical
+
+    # Dispatch notifications if configured
+    if cfg.baseline is None:  # only notify on fresh scans
+        notif_config = getattr(cfg, 'notifications', None)
+        if notif_config:
+            try:
+                from .notifications import dispatch_notifications
+                dispatch_notifications(reported_findings, path, notif_config)
+            except Exception as exc:
+                print(f'\033[93m[AuditLens] Notification error: {exc}\033[0m')
 
     # T1-2: respect fail_on from config
     fail_rank = _SEVERITY_RANK.get(cfg.fail_on, 0)

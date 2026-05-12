@@ -31,8 +31,9 @@ _DEFAULTS: Dict[str, Any] = {
     'exclude_paths': [],
     'disable_rules': [],
     'sca': True,
-    'fail_on': 'LOW',      # any finding → exit 1 by default
+    'fail_on': 'LOW',
     'baseline': None,
+    'notifications': {},
 }
 
 # Candidate config file names (first found wins)
@@ -49,6 +50,7 @@ class AuditLensConfig:
         self.sca: bool = bool(data.get('sca', _DEFAULTS['sca']))
         self.fail_on: str = str(data.get('fail_on', _DEFAULTS['fail_on'])).upper()
         self.baseline: Optional[str] = data.get('baseline', _DEFAULTS['baseline'])
+        self.notifications: Dict[str, Any] = data.get('notifications', _DEFAULTS['notifications']) or {}
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

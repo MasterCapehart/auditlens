@@ -74,14 +74,17 @@ class RulesEngine:
         print(f"\033[90m[AuditLens] Loaded {len(self.rules)} rules.\033[0m")
 
     def get_rules_for_language(self, ext: str) -> List[Rule]:
-        # MISSING-08 FIX: TypeScript mapped properly
         ext_to_lang = {
-            '.py': 'python',
-            '.js': 'javascript',
-            '.jsx': 'javascript',
-            '.ts': 'typescript',
-            '.tsx': 'typescript',
-            '.swift': 'swift',
+            '.py':   'python',
+            '.js':   'javascript',
+            '.jsx':  'javascript',
+            '.ts':   'typescript',
+            '.tsx':  'typescript',
+            '.swift':'swift',
+            '.go':   'go',
+            '.java': 'java',
+            '.kt':   'kotlin',
+            '.rb':   'ruby',
         }
         lang = ext_to_lang.get(ext)
         if not lang:

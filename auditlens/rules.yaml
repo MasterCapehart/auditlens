@@ -451,3 +451,478 @@ rules:
     regex_pattern: "(?i)(?:password|token|secret|api_key)\\s*(?:==|!=)\\s*['\"]"
     compliance: ["OWASP-A2:2021", "CWE-208"]
     severity: "MEDIUM"
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # GO RULES
+  # ══════════════════════════════════════════════════════════════════════════════
+
+  - id: "GO-01-SQL-INJECTION"
+    name: "Go: Potential SQL Injection"
+    description: >
+      String formatting (fmt.Sprintf, string concatenation) used to build SQL
+      queries in Go. Use parameterized queries with db.Query("?", args...) instead.
+    languages: ["go"]
+    regex_pattern: "(?i)(?:db|tx|conn)\\.(?:Query|Exec|QueryRow)\\s*\\(\\s*fmt\\.Sprintf"
+    compliance: ["OWASP-A3:2021", "CWE-89"]
+    severity: "CRITICAL"
+
+  - id: "GO-02-COMMAND-INJECTION"
+    name: "Go: Potential Command Injection"
+    description: >
+      exec.Command built from user-controlled string concatenation.
+      Use a fixed command with argument list; never pass user input to the command name.
+    languages: ["go"]
+    regex_pattern: "exec\\.Command\\s*\\([^)]*\\+"
+    compliance: ["OWASP-A3:2021", "CWE-78"]
+    severity: "CRITICAL"
+
+  - id: "GO-03-HARDCODED-SECRET"
+    name: "Go: Hardcoded Secret"
+    description: >
+      Sensitive variable assigned a string literal in Go source.
+      Use os.Getenv() or a secrets manager.
+    languages: ["go"]
+    regex_pattern: "(?i)(?:password|secret|token|api_key|apiKey|privateKey)\\s*(?::=|=)\\s*\"[^\"]{3,}\""
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "HIGH"
+
+  - id: "GO-04-WEAK-RANDOM"
+    name: "Go: Insecure math/rand"
+    description: >
+      math/rand is not cryptographically secure. Use crypto/rand for tokens,
+      session IDs, or any security-sensitive random value.
+    languages: ["go"]
+    regex_pattern: "rand\\.(?:Intn|Int63|Float64|New)\\s*\\("
+    compliance: ["OWASP-A2:2021", "CWE-338"]
+    severity: "MEDIUM"
+
+  - id: "GO-05-TLS-INSECURE"
+    name: "Go: TLS InsecureSkipVerify"
+    description: >
+      InsecureSkipVerify: true disables TLS certificate validation,
+      making connections vulnerable to MITM attacks.
+    languages: ["go"]
+    regex_pattern: "InsecureSkipVerify\\s*:\\s*true"
+    compliance: ["OWASP-A2:2021", "CWE-295"]
+    severity: "CRITICAL"
+
+  - id: "GO-06-SSRF"
+    name: "Go: Potential SSRF"
+    description: >
+      http.Get/Post called with a URL derived from user input.
+      Validate and allowlist target hosts.
+    languages: ["go"]
+    regex_pattern: "http\\.(?:Get|Post|Do)\\s*\\([^)]*(?:r\\.URL|r\\.Form|r\\.Query|fmt\\.Sprintf)"
+    compliance: ["OWASP-A10:2021", "CWE-918"]
+    severity: "HIGH"
+
+  - id: "GO-07-PATH-TRAVERSAL"
+    name: "Go: Potential Path Traversal"
+    description: >
+      os.Open or ioutil.ReadFile called with a path from user input.
+      Use filepath.Clean and validate the result stays within expected directory.
+    languages: ["go"]
+    regex_pattern: "(?:os\\.Open|ioutil\\.ReadFile|os\\.ReadFile)\\s*\\([^)]*(?:r\\.|req\\.|Vars\\(|Query\\()"
+    compliance: ["OWASP-A1:2021", "CWE-22"]
+    severity: "HIGH"
+
+  - id: "GO-08-HARDCODED-CREDENTIALS-URL"
+    name: "Go: Credentials in Connection String"
+    description: >
+      Database or service connection strings with embedded credentials.
+      Use environment variables or a secrets manager.
+    languages: ["go"]
+    regex_pattern: "(?i)[a-z][a-z0-9+\\-.]*://[^@/\\s]+:[^@/\\s]+@"
+    compliance: ["OWASP-A7:2021", "CWE-312"]
+    severity: "HIGH"
+
+  - id: "GO-09-MD5-SHA1"
+    name: "Go: Weak Hash (MD5/SHA1)"
+    description: >
+      crypto/md5 and crypto/sha1 are cryptographically weak.
+      Use crypto/sha256 or crypto/sha512.
+    languages: ["go"]
+    regex_pattern: "(?:md5|sha1)\\.New\\s*\\(\\s*\\)"
+    compliance: ["OWASP-A2:2021", "CWE-327"]
+    severity: "HIGH"
+
+  - id: "GO-10-GOROUTINE-LEAK"
+    name: "Go: Potential Goroutine Leak"
+    description: >
+      go func() without a mechanism to stop it (context, channel, WaitGroup)
+      can cause goroutine leaks that exhaust memory under load.
+    languages: ["go"]
+    regex_pattern: "go\\s+func\\s*\\(\\s*\\)\\s*\\{"
+    compliance: ["CWE-400"]
+    severity: "LOW"
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # JAVA / KOTLIN RULES
+  # ══════════════════════════════════════════════════════════════════════════════
+
+  - id: "JAVA-01-SQL-INJECTION"
+    name: "Java: Potential SQL Injection"
+    description: >
+      String concatenation used to build SQL queries. Use PreparedStatement
+      with parameterized placeholders instead.
+    languages: ["java", "kotlin"]
+    regex_pattern: "(?i)(?:createStatement|executeQuery|executeUpdate)\\s*\\([^)]*(?:\\+|String\\.format)"
+    compliance: ["OWASP-A3:2021", "CWE-89"]
+    severity: "CRITICAL"
+
+  - id: "JAVA-02-COMMAND-INJECTION"
+    name: "Java: Potential Command Injection"
+    description: >
+      Runtime.exec() or ProcessBuilder called with user-controlled input.
+      Use a fixed command array; never concatenate user input into command strings.
+    languages: ["java", "kotlin"]
+    regex_pattern: "(?:Runtime\\.getRuntime\\(\\)\\.exec|new\\s+ProcessBuilder)\\s*\\([^)]*(?:\\+|request\\.)"
+    compliance: ["OWASP-A3:2021", "CWE-78"]
+    severity: "CRITICAL"
+
+  - id: "JAVA-03-DESERIALIZATION"
+    name: "Java: Insecure Deserialization (ObjectInputStream)"
+    description: >
+      ObjectInputStream.readObject() on untrusted data allows arbitrary code
+      execution via gadget chains. Use a safe deserializer or allowlist classes.
+    languages: ["java", "kotlin"]
+    regex_pattern: "new\\s+ObjectInputStream\\s*\\("
+    compliance: ["OWASP-A8:2021", "CWE-502"]
+    severity: "CRITICAL"
+
+  - id: "JAVA-04-HARDCODED-SECRET"
+    name: "Java/Kotlin: Hardcoded Secret"
+    description: >
+      Sensitive field assigned a string literal. Use environment variables
+      or a secrets manager (e.g. AWS Secrets Manager, Vault).
+    languages: ["java", "kotlin"]
+    regex_pattern: "(?i)(?:password|secret|token|apiKey|api_key|privateKey)\\s*=\\s*\"[^\"]{3,}\""
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "HIGH"
+
+  - id: "JAVA-05-WEAK-HASH"
+    name: "Java: Weak Hash Algorithm (MD5/SHA1)"
+    description: >
+      MessageDigest.getInstance(\"MD5\") or SHA-1 are cryptographically broken.
+      Use SHA-256 or stronger.
+    languages: ["java", "kotlin"]
+    regex_pattern: "MessageDigest\\.getInstance\\s*\\(\\s*\"(?:MD5|SHA-1|SHA1)\""
+    compliance: ["OWASP-A2:2021", "CWE-327"]
+    severity: "HIGH"
+
+  - id: "JAVA-06-XXE"
+    name: "Java: XML External Entity (XXE)"
+    description: >
+      XML parsers with default settings allow XXE attacks. Disable
+      external entity processing: factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true).
+    languages: ["java", "kotlin"]
+    regex_pattern: "(?:DocumentBuilderFactory|SAXParserFactory|XMLInputFactory)\\.newInstance\\s*\\("
+    compliance: ["OWASP-A5:2021", "CWE-611"]
+    severity: "HIGH"
+
+  - id: "JAVA-07-PATH-TRAVERSAL"
+    name: "Java: Potential Path Traversal"
+    description: >
+      File or FileInputStream constructed from user request parameters.
+      Validate and canonicalize paths with File.getCanonicalPath().
+    languages: ["java", "kotlin"]
+    regex_pattern: "new\\s+(?:File|FileInputStream)\\s*\\([^)]*(?:request\\.getParameter|getPathVariable|\\+)"
+    compliance: ["OWASP-A1:2021", "CWE-22"]
+    severity: "HIGH"
+
+  - id: "JAVA-08-OPEN-REDIRECT"
+    name: "Java/Spring: Open Redirect"
+    description: >
+      response.sendRedirect() or RedirectView with user-controlled URL.
+      Validate redirect targets against an allowlist.
+    languages: ["java", "kotlin"]
+    regex_pattern: "(?:sendRedirect|new\\s+RedirectView)\\s*\\([^)]*(?:request\\.getParameter|getParam|\\+)"
+    compliance: ["OWASP-A1:2021", "CWE-601"]
+    severity: "MEDIUM"
+
+  - id: "JAVA-09-SPRING-ACTUATOR"
+    name: "Spring Boot: All Actuator Endpoints Exposed"
+    description: >
+      management.endpoints.web.exposure.include=* exposes sensitive actuator
+      endpoints (health, env, beans, heapdump). Restrict to specific safe endpoints.
+    languages: ["java", "kotlin"]
+    regex_pattern: "management\\.endpoints\\.web\\.exposure\\.include\\s*=\\s*\\*"
+    compliance: ["OWASP-A5:2021", "CWE-200"]
+    severity: "HIGH"
+
+  - id: "JAVA-10-LOG4J-JNDI"
+    name: "Java: Log4Shell / JNDI Lookup Pattern"
+    description: >
+      Logging user-controlled data through Log4j 2.x with JNDI lookup patterns
+      (${jndi:...}) enables remote code execution (CVE-2021-44228).
+      Update Log4j to 2.17.1+ and sanitize all logged user input.
+    languages: ["java", "kotlin"]
+    regex_pattern: "(?:log|logger)\\.(?:info|warn|error|debug|fatal)\\s*\\([^)]*(?:request\\.|userInput|params)"
+    compliance: ["CVE-2021-44228", "OWASP-A6:2021", "CWE-20"]
+    severity: "CRITICAL"
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # RUBY RULES
+  # ══════════════════════════════════════════════════════════════════════════════
+
+  - id: "RUBY-01-SQL-INJECTION"
+    name: "Ruby/Rails: Potential SQL Injection"
+    description: >
+      String interpolation in ActiveRecord queries allows SQL injection.
+      Use parameterized queries: where("name = ?", name) or where(name: name).
+    languages: ["ruby"]
+    regex_pattern: "(?:where|find_by_sql|execute|select)\\s*\\([^)]*#\\{"
+    compliance: ["OWASP-A3:2021", "CWE-89"]
+    severity: "CRITICAL"
+
+  - id: "RUBY-02-COMMAND-INJECTION"
+    name: "Ruby: Potential Command Injection"
+    description: >
+      Kernel#system, backticks, or %x[] with string interpolation.
+      Use IO.popen with an argument array or shellwords escaping.
+    languages: ["ruby"]
+    regex_pattern: "(?:`[^`]*#\\{|%x\\[[^\\]]*#\\{|system\\s*\\([^)]*#\\{)"
+    compliance: ["OWASP-A3:2021", "CWE-78"]
+    severity: "CRITICAL"
+
+  - id: "RUBY-03-MASS-ASSIGNMENT"
+    name: "Ruby/Rails: Mass Assignment Vulnerability"
+    description: >
+      Using params directly in model creation without strong parameters
+      allows attackers to set arbitrary attributes.
+    languages: ["ruby"]
+    regex_pattern: "(?:create|update|new)\\s*\\(\\s*params(?!.*permit)"
+    compliance: ["OWASP-A1:2021", "CWE-915"]
+    severity: "HIGH"
+
+  - id: "RUBY-04-HARDCODED-SECRET"
+    name: "Ruby: Hardcoded Secret"
+    description: >
+      Sensitive variable assigned a string literal.
+      Use Rails credentials (rails credentials:edit) or ENV variables.
+    languages: ["ruby"]
+    regex_pattern: "(?i)(?:password|secret|token|api_key|secret_key_base)\\s*=\\s*['\"][^'\"]{3,}['\"]"
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "HIGH"
+
+  - id: "RUBY-05-YAML-LOAD"
+    name: "Ruby: Insecure YAML.load"
+    description: >
+      YAML.load() can execute arbitrary Ruby code via Psych deserialization gadgets.
+      Use YAML.safe_load() or YAML.load(input, permitted_classes: []) instead.
+    languages: ["ruby"]
+    regex_pattern: "YAML\\.load\\s*\\("
+    compliance: ["OWASP-A8:2021", "CWE-502"]
+    severity: "CRITICAL"
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # PYTHON FRAMEWORK-SPECIFIC RULES
+  # ══════════════════════════════════════════════════════════════════════════════
+
+  - id: "PY-SQLALCHEMY-RAW"
+    name: "Python/SQLAlchemy: Raw SQL with String Interpolation"
+    description: >
+      text() or engine.execute() with f-strings or % formatting allows SQL injection.
+      Use SQLAlchemy's ORM or parameterized text(\"SELECT :val\").bindparams(val=x).
+    languages: ["python"]
+    regex_pattern: "(?:db\\.session\\.execute|engine\\.execute|text)\\s*\\(\\s*(?:f['\"]|['\"][^'\"]*%)"
+    compliance: ["OWASP-A3:2021", "CWE-89"]
+    severity: "CRITICAL"
+
+  - id: "PY-FASTAPI-OPEN-REDIRECT"
+    name: "Python/FastAPI: Open Redirect"
+    description: >
+      RedirectResponse with user-controlled URL. Validate redirect targets
+      against an allowlist before redirecting.
+    languages: ["python"]
+    regex_pattern: "RedirectResponse\\s*\\([^)]*(?:request\\.|query_params|body)"
+    compliance: ["OWASP-A1:2021", "CWE-601"]
+    severity: "MEDIUM"
+
+  - id: "PY-REQUESTS-NO-TIMEOUT"
+    name: "Python: HTTP Request Without Timeout"
+    description: >
+      requests.get/post without a timeout parameter can hang indefinitely,
+      causing resource exhaustion. Always specify timeout=N.
+    languages: ["python"]
+    regex_pattern: "requests\\.(?:get|post|put|patch|delete|request)\\s*\\([^)]*\\)(?![^#]*timeout)"
+    compliance: ["CWE-400", "OWASP-A6:2021"]
+    severity: "LOW"
+
+  - id: "PY-FLASK-COOKIE-SECURE"
+    name: "Python/Flask: Insecure Cookie Configuration"
+    description: >
+      Setting SESSION_COOKIE_SECURE=False or SESSION_COOKIE_HTTPONLY=False
+      exposes session cookies to network eavesdropping or XSS.
+    languages: ["python"]
+    regex_pattern: "(?i)SESSION_COOKIE_(?:SECURE|HTTPONLY)\\s*=\\s*False"
+    compliance: ["OWASP-A2:2021", "CWE-614"]
+    severity: "HIGH"
+
+  - id: "PY-HARDCODED-STRIPE-KEY"
+    name: "Python: Hardcoded Stripe Secret Key"
+    description: >
+      Stripe secret API keys (sk_live_...) detected in source code.
+      Revoke and rotate immediately; use environment variables.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "sk_live_[A-Za-z0-9]{24,}"
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "CRITICAL"
+
+  - id: "PY-HARDCODED-TWILIO"
+    name: "Hardcoded Twilio Auth Token"
+    description: >
+      Twilio account SID / auth token detected in source.
+      Use environment variables.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?:AC[a-z0-9]{32}|SK[a-z0-9]{32})"
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "CRITICAL"
+
+  - id: "PY-HARDCODED-SENDGRID"
+    name: "Hardcoded SendGrid API Key"
+    description: >
+      SendGrid API keys (SG.xxx) detected in source.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "SG\\.[A-Za-z0-9_-]{22}\\.[A-Za-z0-9_-]{43}"
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "CRITICAL"
+
+  - id: "PY-HARDCODED-GCP-KEY"
+    name: "Hardcoded GCP Service Account Key"
+    description: >
+      Google Cloud Platform service account private key or API key detected.
+      Use Application Default Credentials or Workload Identity instead.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "\"private_key\":\\s*\"-----BEGIN RSA PRIVATE KEY-----"
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "CRITICAL"
+
+  - id: "PY-UNSAFE-TEMP-FILE"
+    name: "Python: Insecure Temporary File"
+    description: >
+      tempfile.mktemp() is insecure due to TOCTOU race conditions.
+      Use tempfile.NamedTemporaryFile() or tempfile.mkstemp() instead.
+    languages: ["python"]
+    regex_pattern: "tempfile\\.mktemp\\s*\\("
+    compliance: ["CWE-377", "OWASP-A1:2021"]
+    severity: "MEDIUM"
+
+  - id: "PY-ASSERT-USED"
+    name: "Python: assert Used for Security Check"
+    description: >
+      Python's assert statements are disabled when running with -O (optimize).
+      Never use assert for authentication, authorization, or input validation.
+    languages: ["python"]
+    regex_pattern: "(?i)assert\\s+(?:user|auth|is_admin|permission|token|logged_in)"
+    compliance: ["CWE-617", "OWASP-A1:2021"]
+    severity: "HIGH"
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # JAVASCRIPT / TYPESCRIPT FRAMEWORK-SPECIFIC
+  # ══════════════════════════════════════════════════════════════════════════════
+
+  - id: "JS-01-NOSQL-MONGOOSE"
+    name: "Node.js/Mongoose: NoSQL Injection"
+    description: >
+      Passing req.body or req.query directly to Mongoose find() or findOne()
+      allows query operator injection ({$gt:'', $where:'...'}).
+      Sanitize with express-mongo-sanitize or validate schema strictly.
+    languages: ["javascript", "typescript"]
+    regex_pattern: "(?:find|findOne|findById|updateOne|deleteOne)\\s*\\(\\s*(?:req\\.body|req\\.query|req\\.params)"
+    compliance: ["OWASP-A3:2021", "CWE-943"]
+    severity: "CRITICAL"
+
+  - id: "JS-02-HARDCODED-JWT-SECRET"
+    name: "Node.js: Hardcoded JWT Secret"
+    description: >
+      jwt.sign() called with a hardcoded string secret.
+      Use a long random secret from environment variables.
+    languages: ["javascript", "typescript"]
+    regex_pattern: "jwt\\.sign\\s*\\([^)]+,\\s*['\"][^'\"]{3,}['\"]"
+    compliance: ["OWASP-A2:2021", "CWE-798"]
+    severity: "HIGH"
+
+  - id: "JS-03-SERIALIZE-JS"
+    name: "Node.js: serialize-javascript / vm.runInNewContext"
+    description: >
+      Deserializing user-controlled JavaScript with serialize-js or vm.runInNewContext
+      can lead to arbitrary code execution.
+    languages: ["javascript", "typescript"]
+    regex_pattern: "(?:serialize|vm\\.runInNewContext|vm\\.runInContext)\\s*\\([^)]*(?:req\\.|body|params|query)"
+    compliance: ["OWASP-A8:2021", "CWE-502"]
+    severity: "CRITICAL"
+
+  - id: "JS-04-HELMET-MISSING"
+    name: "Express: Helmet Security Middleware Not Used"
+    description: >
+      Express app created without helmet() middleware leaves HTTP security headers
+      (X-XSS-Protection, HSTS, CSP, etc.) unset.
+    languages: ["javascript", "typescript"]
+    regex_pattern: "express\\s*\\(\\s*\\)(?![\\s\\S]{0,200}helmet)"
+    compliance: ["OWASP-A5:2021", "CWE-16"]
+    severity: "MEDIUM"
+
+  - id: "JS-05-DANGEROUS-DANGEROUSLY-SET-HTML"
+    name: "React: dangerouslySetInnerHTML with Non-Literal"
+    description: >
+      dangerouslySetInnerHTML with a variable (not a hardcoded string literal)
+      risks XSS if the value is user-controlled. Sanitize with DOMPurify first.
+    languages: ["javascript", "typescript"]
+    regex_pattern: "dangerouslySetInnerHTML\\s*=\\s*\\{\\s*\\{\\s*__html\\s*:"
+    compliance: ["OWASP-A3:2021", "CWE-79"]
+    severity: "MEDIUM"
+
+  - id: "JS-06-CORS-ALL-ORIGINS-EXPRESS"
+    name: "Express: CORS Allowing All Origins"
+    description: >
+      cors({origin: '*'}) or cors() without origin restriction allows any domain
+      to make credentialed cross-origin requests to your API.
+    languages: ["javascript", "typescript"]
+    regex_pattern: "cors\\s*\\(\\s*\\{[^}]*origin\\s*:\\s*['\"]\\*['\"]"
+    compliance: ["OWASP-A5:2021", "CWE-942"]
+    severity: "MEDIUM"
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # CLOUD / INFRASTRUCTURE
+  # ══════════════════════════════════════════════════════════════════════════════
+
+  - id: "CLOUD-01-S3-PUBLIC-ACL"
+    name: "AWS S3: Public ACL"
+    description: >
+      Setting S3 bucket or object ACL to 'public-read' or 'public-read-write'
+      exposes data to the public internet.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "(?:ACL|acl)\\s*=\\s*['\"]public-read(?:-write)?['\"]"
+    compliance: ["OWASP-A5:2021", "CWE-284", "AWS Security Best Practices"]
+    severity: "HIGH"
+
+  - id: "CLOUD-02-AZURE-CONNECTION-STRING"
+    name: "Azure: Hardcoded Connection String"
+    description: >
+      Azure Storage or Service Bus connection string with AccountKey embedded.
+      Use Managed Identity or Azure Key Vault instead.
+    languages: ["python", "javascript", "typescript", "java", "kotlin"]
+    regex_pattern: "AccountKey=[A-Za-z0-9+/]{43,}={0,2}"
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "CRITICAL"
+
+  - id: "CLOUD-03-HARDCODED-GCP-PROJECT"
+    name: "GCP: Hardcoded Project ID / Credentials"
+    description: >
+      Google Cloud credentials or project IDs embedded in code. Use
+      Application Default Credentials (ADC) and environment config.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "\"type\":\\s*\"service_account\""
+    compliance: ["OWASP-A7:2021", "CWE-798"]
+    severity: "HIGH"
+
+  - id: "CLOUD-04-DOCKER-ROOT"
+    name: "Dockerfile: Running as Root"
+    description: >
+      Container running as root (no USER directive after FROM).
+      Add 'USER nonroot' or a specific low-privilege user to the Dockerfile.
+    languages: ["python", "javascript", "typescript"]
+    regex_pattern: "USER\\s+root"
+    compliance: ["CWE-250", "Docker CIS Benchmark 4.1"]
+    severity: "MEDIUM"

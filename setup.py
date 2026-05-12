@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="auditlens",
-    version="0.2.0",
-    description="SAST, SCA, Taint Analysis and Post-Mortem diagnostics for Python, JS, TS and Swift.",
+    version="0.3.0",
+    description="SAST, SCA, Taint Analysis and Post-Mortem diagnostics for Python, JS, TS, Swift, Go, Java, Kotlin, Ruby.",
     long_description=open("README.md", encoding="utf-8").read() if __import__("os").path.exists("README.md") else "",
     long_description_content_type="text/markdown",
     author="AuditLens Contributors",
@@ -44,6 +44,23 @@ setup(
             "pytest>=7.0",
             "pytest-cov>=4.0",
             "responses>=0.23",
+        ],
+        # Dashboard
+        "dashboard": [
+            "flask>=3.0",
+            "werkzeug>=3.0",
+        ],
+        # File watcher
+        "watch": [
+            "watchdog>=4.0",
+        ],
+        # Full install (all optional features)
+        "all": [
+            "tree-sitter-swift>=0.4",
+            "tree-sitter-typescript>=0.21",
+            "flask>=3.0",
+            "werkzeug>=3.0",
+            "watchdog>=4.0",
         ],
     },
     classifiers=[
