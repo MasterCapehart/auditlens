@@ -24,7 +24,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 _DASHBOARD_HTML = r"""<!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -90,72 +90,72 @@ _DASHBOARD_HTML = r"""<!DOCTYPE html>
 <header>
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
   <h1>AuditLens</h1>
-  <span class="badge" id="header-badge">Loading...</span>
+  <span class="badge" id="header-badge">Cargando...</span>
 </header>
 <div class="container">
   <div class="scan-bar">
     <span class="scan-path" id="scan-path-label"></span>
     <span class="last-scan" id="last-scan-label"></span>
-    <button id="scan-btn" onclick="triggerScan()">&#9654; Scan Now</button>
+    <button id="scan-btn" onclick="triggerScan()">&#9654; Escanear Ahora</button>
     <div class="spinner" id="spinner"></div>
   </div>
 
-  <!-- Summary stats -->
+  <!-- Estadísticas -->
   <div class="grid-4">
-    <div class="card stat-card"><div class="stat-num critical-num" id="cnt-critical">0</div><div class="stat-label">Critical</div></div>
-    <div class="card stat-card"><div class="stat-num high-num"     id="cnt-high">0</div><div class="stat-label">High</div></div>
-    <div class="card stat-card"><div class="stat-num medium-num"   id="cnt-medium">0</div><div class="stat-label">Medium</div></div>
-    <div class="card stat-card"><div class="stat-num low-num"      id="cnt-low">0</div><div class="stat-label">Low</div></div>
+    <div class="card stat-card"><div class="stat-num critical-num" id="cnt-critical">0</div><div class="stat-label">Crítico</div></div>
+    <div class="card stat-card"><div class="stat-num high-num"     id="cnt-high">0</div><div class="stat-label">Alto</div></div>
+    <div class="card stat-card"><div class="stat-num medium-num"   id="cnt-medium">0</div><div class="stat-label">Medio</div></div>
+    <div class="card stat-card"><div class="stat-num low-num"      id="cnt-low">0</div><div class="stat-label">Bajo</div></div>
   </div>
 
   <div class="grid-2">
-    <!-- Trend chart -->
+    <!-- Gráfico de tendencia -->
     <div class="card">
-      <h2>Severity Trend</h2>
+      <h2>Tendencia de Severidad</h2>
       <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
     </div>
-    <!-- File heatmap -->
+    <!-- Mapa de calor de archivos -->
     <div class="card">
-      <h2>Most Vulnerable Files</h2>
+      <h2>Archivos más Vulnerables</h2>
       <table id="heatmap-table">
-        <thead><tr><th>File</th><th>Findings</th><th>Worst</th></tr></thead>
-        <tbody id="heatmap-body"><tr><td colspan="3" class="empty">No data</td></tr></tbody>
+        <thead><tr><th>Archivo</th><th>Hallazgos</th><th>Peor</th></tr></thead>
+        <tbody id="heatmap-body"><tr><td colspan="3" class="empty">Sin datos</td></tr></tbody>
       </table>
     </div>
   </div>
 
   <div class="grid-2">
-    <!-- Compliance coverage -->
+    <!-- Cobertura de cumplimiento -->
     <div class="card">
-      <h2>Compliance Coverage</h2>
+      <h2>Cobertura de Cumplimiento</h2>
       <div class="chart-wrap"><canvas id="complianceChart"></canvas></div>
     </div>
-    <!-- Rule breakdown -->
+    <!-- Reglas más activadas -->
     <div class="card">
-      <h2>Top Rules Triggered</h2>
+      <h2>Reglas más Activadas</h2>
       <table>
-        <thead><tr><th>Rule</th><th>Count</th><th>Severity</th></tr></thead>
-        <tbody id="rules-body"><tr><td colspan="3" class="empty">No data</td></tr></tbody>
+        <thead><tr><th>Regla</th><th>Cantidad</th><th>Severidad</th></tr></thead>
+        <tbody id="rules-body"><tr><td colspan="3" class="empty">Sin datos</td></tr></tbody>
       </table>
     </div>
   </div>
 
-  <!-- Findings table -->
+  <!-- Tabla de hallazgos -->
   <div class="card">
-    <h2>All Findings</h2>
+    <h2>Todos los Hallazgos</h2>
     <div class="filter-bar">
-      <input type="text" id="search" placeholder="Search rule, file, description..." oninput="filterTable()">
+      <input type="text" id="search" placeholder="Buscar regla, archivo, descripción..." oninput="filterTable()">
       <select id="sev-filter" onchange="filterTable()">
-        <option value="">All severities</option>
-        <option value="CRITICAL">Critical</option>
-        <option value="HIGH">High</option>
-        <option value="MEDIUM">Medium</option>
-        <option value="LOW">Low</option>
+        <option value="">Todas las severidades</option>
+        <option value="CRITICAL">Crítico</option>
+        <option value="HIGH">Alto</option>
+        <option value="MEDIUM">Medio</option>
+        <option value="LOW">Bajo</option>
       </select>
     </div>
     <table>
-      <thead><tr><th>Severity</th><th>Rule</th><th>File : Line</th><th>Description</th><th>Compliance</th></tr></thead>
-      <tbody id="findings-body"><tr><td colspan="5" class="empty">No findings</td></tr></tbody>
+      <thead><tr><th>Severidad</th><th>Regla</th><th>Archivo : Línea</th><th>Descripción</th><th>Cumplimiento</th></tr></thead>
+      <tbody id="findings-body"><tr><td colspan="5" class="empty">Sin hallazgos</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -176,9 +176,9 @@ async function load() {
   allFindings = data.findings || [];
   document.getElementById('scan-path-label').textContent = data.scan_path || '';
   document.getElementById('last-scan-label').textContent = data.last_scan
-    ? 'Last scan: ' + data.last_scan : '';
+    ? 'Último escaneo: ' + data.last_scan : '';
   document.getElementById('header-badge').textContent =
-    allFindings.length + ' finding' + (allFindings.length !== 1 ? 's' : '');
+    allFindings.length + ' hallazgo' + (allFindings.length !== 1 ? 's' : '');
 
   updateStats(allFindings);
   renderHeatmap(allFindings);
@@ -209,7 +209,7 @@ function renderHeatmap(findings) {
   const sorted = Object.entries(fileMap).sort((a,b) => b[1].count - a[1].count).slice(0,8);
   const max = sorted[0]?.[1].count || 1;
   const tbody = document.getElementById('heatmap-body');
-  if (!sorted.length) { tbody.innerHTML = '<tr><td colspan="3" class="empty">No data</td></tr>'; return; }
+  if (!sorted.length) { tbody.innerHTML = '<tr><td colspan="3" class="empty">Sin datos</td></tr>'; return; }
   tbody.innerHTML = sorted.map(([file, info]) => `
     <tr class="heatmap-row">
       <td title="${info.full}">${file}</td>
@@ -229,7 +229,7 @@ function renderRules(findings) {
   });
   const sorted = Object.entries(ruleMap).sort((a,b) => b[1].count - a[1].count).slice(0,8);
   const tbody = document.getElementById('rules-body');
-  if (!sorted.length) { tbody.innerHTML = '<tr><td colspan="3" class="empty">No data</td></tr>'; return; }
+  if (!sorted.length) { tbody.innerHTML = '<tr><td colspan="3" class="empty">Sin datos</td></tr>'; return; }
   tbody.innerHTML = sorted.map(([rule, info]) => `
     <tr>
       <td><code style="font-size:12px">${rule}</code></td>
@@ -240,7 +240,7 @@ function renderRules(findings) {
 
 function renderFindings(findings) {
   const tbody = document.getElementById('findings-body');
-  if (!findings.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No findings</td></tr>'; return; }
+  if (!findings.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">Sin hallazgos</td></tr>'; return; }
   tbody.innerHTML = findings.map(f => {
     const file = f.file.split('/').slice(-2).join('/');
     const comp = (f.compliance||[]).map(c => `<span class="tag">${c}</span>`).join('');
@@ -276,10 +276,10 @@ function renderTrend(history) {
   trendChart = new Chart(document.getElementById('trendChart'), {
     type: 'line',
     data: { labels, datasets: [
-      {label:'Critical', data:crit, borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.1)', tension:.3, fill:true},
-      {label:'High',     data:high, borderColor:'#f97316', backgroundColor:'rgba(249,115,22,.1)', tension:.3, fill:true},
-      {label:'Medium',   data:med,  borderColor:'#eab308', backgroundColor:'rgba(234,179,8,.1)',  tension:.3, fill:true},
-      {label:'Low',      data:low,  borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.1)', tension:.3, fill:true},
+      {label:'Crítico', data:crit, borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.1)', tension:.3, fill:true},
+      {label:'Alto',    data:high, borderColor:'#f97316', backgroundColor:'rgba(249,115,22,.1)', tension:.3, fill:true},
+      {label:'Medio',   data:med,  borderColor:'#eab308', backgroundColor:'rgba(234,179,8,.1)',  tension:.3, fill:true},
+      {label:'Bajo',    data:low,  borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.1)', tension:.3, fill:true},
     ]},
     options: {
       responsive:true, maintainAspectRatio:false,
@@ -322,19 +322,19 @@ function renderCompliance(findings) {
 async function triggerScan() {
   document.getElementById('scan-btn').disabled = true;
   document.getElementById('spinner').style.display = 'block';
-  document.getElementById('scan-btn').textContent = 'Scanning...';
+  document.getElementById('scan-btn').textContent = 'Escaneando...';
   try {
     await fetch('/api/scan', {method:'POST'});
     await load();
   } finally {
     document.getElementById('scan-btn').disabled = false;
     document.getElementById('spinner').style.display = 'none';
-    document.getElementById('scan-btn').textContent = '▶ Scan Now';
+    document.getElementById('scan-btn').textContent = '▶ Escanear Ahora';
   }
 }
 
 load();
-setInterval(load, 30000); // auto-refresh every 30s
+setInterval(load, 30000); // actualizar cada 30 segundos
 </script>
 </body>
 </html>
