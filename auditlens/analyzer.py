@@ -327,8 +327,10 @@ def run_static_analysis(
             analyze_file(path, **common_kwargs)
     elif os.path.isdir(path):
         exclude_dirs = {
-            'venv', 'env', '.env', '.git', '__pycache__',
+            'venv', 'env', '.env', '.venv',  # virtual environments (with and without dot)
+            '.git', '__pycache__',
             'node_modules', 'build', 'dist', '.tox',
+            'site-packages', 'lib', 'bin', 'include',  # inside venvs
         }
         for root, dirs, files in os.walk(path):
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
