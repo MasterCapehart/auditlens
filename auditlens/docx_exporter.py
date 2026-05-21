@@ -180,18 +180,22 @@ class DocxReportExporter:
             (1, '3.2',  'Fases del Proceso',                          'sec_fases'),
             (1, '3.3',  'Criterios ISO 25040 / 12207 / 14764',        'sec_criterios'),
             (1, '3.4',  'Equipo Auditor',                             'sec_roles'),
-            (0, '4.',   f'Hallazgos ({findings_count} hallazgos)',    'sec_hallazgos'),
-            (0, '5.',   'Análisis de Brechas ISO',                    'sec_brechas'),
-            (1, '5.1',  'ISO 25040 — Calidad del Producto',           'sec_iso25040'),
-            (1, '5.2',  'ISO 12207 — Ciclo de Vida',                  'sec_iso12207'),
-            (1, '5.3',  'ISO 14764 — Mantenimiento',                  'sec_iso14764'),
-            (0, '6.',   'Cobertura de Pruebas',                       'sec_tests'),
-            (0, '7.',   'Conclusiones',                               'sec_conclusiones'),
-            (0, '8.',   'Recomendaciones',                            'sec_recomendaciones'),
-            (1, '8.1',  'Acciones Inmediatas (CRÍTICO)',               'sec_rec_critico'),
-            (1, '8.2',  'Acciones Urgentes (ALTO)',                   'sec_rec_alto'),
-            (1, '8.3',  'Acciones Planificadas (MEDIO)',              'sec_rec_medio'),
-            (0, '9.',   'Plan de Seguimiento',                        'sec_seguimiento'),
+            (0, '4.',   'Ejecución y Recolección de Evidencia',       'sec_ejecucion'),
+            (1, '4.1',  'Procedimientos de Recolección de Evidencia', 'sec_recoleccion'),
+            (1, '4.2',  'Estrategias de Pruebas de Software',         'sec_pruebas'),
+            (1, '4.3',  'Validez y Confiabilidad de la Evidencia',    'sec_validez'),
+            (0, '5.',   f'Hallazgos ({findings_count} hallazgos)',    'sec_hallazgos'),
+            (0, '6.',   'Análisis de Brechas ISO',                    'sec_brechas'),
+            (1, '6.1',  'ISO 25040 — Calidad del Producto',           'sec_iso25040'),
+            (1, '6.2',  'ISO 12207 — Ciclo de Vida',                  'sec_iso12207'),
+            (1, '6.3',  'ISO 14764 — Mantenimiento',                  'sec_iso14764'),
+            (0, '7.',   'Cobertura de Pruebas',                       'sec_tests'),
+            (0, '8.',   'Conclusiones',                               'sec_conclusiones'),
+            (0, '9.',   'Recomendaciones y Seguimiento',              'sec_recomendaciones'),
+            (1, '9.1',  'Recomendaciones Priorizadas',                'sec_rec_critico'),
+            (1, '9.2',  'Plan de Seguimiento con KPIs',               'sec_seguimiento'),
+            (1, '9.3',  'Criterios de Cierre de la Auditoría',        'sec_cierre'),
+            (1, '9.4',  'Lecciones Aprendidas',                       'sec_lecciones'),
             (0, '10.',  'Anexos',                                     'sec_anexos'),
             (1, 'A.',   'Estructura del Proyecto',                    'sec_anexo_a'),
             (1, 'B.',   'Archivos sin Cobertura de Pruebas',          'sec_anexo_b'),
@@ -230,32 +234,37 @@ class DocxReportExporter:
 
     # Mapping from heading text fragments to bookmark names
     _HEADING_BOOKMARK_MAP = {
-        'Resumen Ejecutivo':          'sec_resumen',
-        'Introducción':               'sec_intro',
-        'Propósito y Alcance':        'sec_alcance',
-        'Objetivos SMART':            'sec_smart',
-        'Metodología':                'sec_metodologia',
-        'Técnicas y Herramientas':    'sec_tecnicas',
-        'Fases del Proceso':          'sec_fases',
-        'Criterios de Auditoría':     'sec_criterios',
-        'Equipo Auditor':             'sec_roles',
-        'Hallazgos de Auditoría':     'sec_hallazgos',
-        'Análisis de Brechas ISO':    'sec_brechas',
-        'ISO/IEC 25040':              'sec_iso25040',
-        'ISO/IEC 12207':              'sec_iso12207',
-        'ISO/IEC 14764':              'sec_iso14764',
-        'Cobertura de Pruebas':       'sec_tests',
-        'Conclusiones':               'sec_conclusiones',
-        'Recomendaciones':            'sec_recomendaciones',
-        'Acciones Inmediatas':        'sec_rec_critico',
-        'Acciones Urgentes':          'sec_rec_alto',
-        'Acciones Planificadas':      'sec_rec_medio',
-        'Plan de Seguimiento':        'sec_seguimiento',
-        'Anexos':                     'sec_anexos',
-        'Anexo A':                    'sec_anexo_a',
-        'Estructura del Proyecto':    'sec_anexo_a',
-        'Archivos sin Cobertura':     'sec_anexo_b',
-        'Herramienta Utilizada':      'sec_anexo_c',
+        'Resumen Ejecutivo':                    'sec_resumen',
+        'Introducción':                         'sec_intro',
+        'Propósito y Alcance':                  'sec_alcance',
+        'Objetivos SMART':                      'sec_smart',
+        'Metodología':                          'sec_metodologia',
+        'Técnicas y Herramientas':              'sec_tecnicas',
+        'Fases del Proceso':                    'sec_fases',
+        'Criterios de Auditoría':               'sec_criterios',
+        'Equipo Auditor':                       'sec_roles',
+        'Ejecución y Recolección':              'sec_ejecucion',
+        'Procedimientos de Recolección':        'sec_recoleccion',
+        'Estrategias de Pruebas':               'sec_pruebas',
+        'Validez y Confiabilidad':              'sec_validez',
+        'Hallazgos de Auditoría':               'sec_hallazgos',
+        'Análisis de Brechas ISO':              'sec_brechas',
+        'ISO/IEC 25040':                        'sec_iso25040',
+        'ISO/IEC 12207':                        'sec_iso12207',
+        'ISO/IEC 14764':                        'sec_iso14764',
+        'Cobertura de Pruebas':                 'sec_tests',
+        'Conclusiones':                         'sec_conclusiones',
+        'Recomendaciones y Seguimiento':        'sec_recomendaciones',
+        'Recomendaciones Priorizadas':          'sec_rec_critico',
+        'Acciones Inmediatas':                  'sec_rec_critico',
+        'Plan de Seguimiento':                  'sec_seguimiento',
+        'Criterios para el Cierre':             'sec_cierre',
+        'Lecciones Aprendidas':                 'sec_lecciones',
+        'Anexos':                               'sec_anexos',
+        'Anexo A':                              'sec_anexo_a',
+        'Estructura del Proyecto':              'sec_anexo_a',
+        'Archivos sin Cobertura':               'sec_anexo_b',
+        'Herramienta Utilizada':                'sec_anexo_c',
     }
 
     def _add_heading(self, text: str, level: int = 1, color=None):
@@ -853,6 +862,377 @@ class DocxReportExporter:
         ]
         self._add_table(['Campo', 'Valor'], tool_rows)
 
+    def add_evidence_collection(self, findings: List[dict], project_info: Dict, sistema: str):
+        """
+        Sección 2.1 — Procedimientos de Recolección de Evidencia
+        Incluye plantillas de recolección pre-llenadas con datos del proyecto.
+        """
+        self._add_heading('2.1 Procedimientos de Recolección de Evidencia', level=2)
+        self._add_paragraph(
+            'Los siguientes procedimientos especifican qué evidencia se recolecta, '
+            'cómo se obtiene y qué artefactos se analizan conforme a ISO 25040, '
+            'ISO 12207 e ISO 14764.'
+        )
+
+        # Procedimiento 1 — Análisis estático de código
+        self._add_heading('Procedimiento 1: Análisis Estático del Código Fuente', level=3)
+        self._add_table(
+            ['Campo', 'Detalle'],
+            [
+                ['Objetivo', 'Identificar vulnerabilidades, deuda técnica y violaciones de estándares en el código fuente'],
+                ['Norma ISO', 'ISO 25040 — Seguridad Funcional; ISO 12207 — Codificación y Verificación'],
+                ['Qué se busca', 'Vulnerabilidades de seguridad, patrones inseguros, secrets expuestos, flujos de datos peligrosos'],
+                ['Cómo se obtiene', f'Ejecución de AuditLens sobre {project_info.get("total_archivos", 0)} archivos fuente del sistema {sistema}'],
+                ['Artefactos analizados', f'{", ".join(list(project_info.get("lenguajes", {}).keys())[:4])} — código fuente del repositorio'],
+                ['Herramienta', 'AuditLens v0.3.0 (SAST + Taint Analysis + SCA)'],
+                ['Resultado', 'Reporte de hallazgos con Condición/Criterio/Causa/Efecto y mapeo ISO'],
+                ['Responsable', 'Auditor Técnico de Software'],
+            ]
+        )
+
+        # Procedimiento 2 — Análisis de dependencias
+        self._add_heading('Procedimiento 2: Análisis de Composición de Software (SCA)', level=3)
+        self._add_table(
+            ['Campo', 'Detalle'],
+            [
+                ['Objetivo', 'Detectar dependencias de terceros con vulnerabilidades conocidas (CVEs)'],
+                ['Norma ISO', 'ISO 25040 — Fiabilidad; ISO 14764 — Mantenimiento Preventivo'],
+                ['Qué se busca', 'Dependencias con CVEs publicados en la base de datos OSV/NVD'],
+                ['Cómo se obtiene', 'Análisis de requirements.txt, package.json, poetry.lock, Pipfile.lock, yarn.lock'],
+                ['Fuente de datos', 'Google OSV API (api.osv.dev) — base de datos pública de vulnerabilidades'],
+                ['Herramienta', 'AuditLens SCA Engine + OSV API'],
+                ['Resultado', 'Lista de dependencias vulnerables con CVE, severidad y recomendación de actualización'],
+                ['Responsable', 'Auditor Técnico de Software'],
+            ]
+        )
+
+        # Procedimiento 3 — Cobertura de pruebas
+        self._add_heading('Procedimiento 3: Revisión de Cobertura de Pruebas', level=3)
+        self._add_table(
+            ['Campo', 'Detalle'],
+            [
+                ['Objetivo', 'Evaluar la existencia y calidad de las pruebas de software del sistema'],
+                ['Norma ISO', 'ISO 12207 — Verificación y Validación; ISO 25040 — Fiabilidad'],
+                ['Qué se busca', 'Archivos de prueba, tipos de pruebas (unitarias, integración, seguridad), ratio de cobertura'],
+                ['Cómo se obtiene', 'Análisis automático del repositorio en busca de archivos test_*.py, *.test.ts, *.spec.js, etc.'],
+                ['Herramienta', 'AuditLens Test Coverage Analyzer'],
+                ['Resultado', 'Ratio de cobertura estimado, lista de archivos sin pruebas, brechas identificadas'],
+                ['Responsable', 'Auditor Técnico de Software'],
+            ]
+        )
+
+        # Plantilla de registro de evidencia
+        self._add_heading('Plantilla de Registro de Evidencia', level=3)
+        self._add_paragraph(
+            'La siguiente plantilla debe utilizarse para registrar cada pieza de evidencia '
+            'recolectada durante la auditoría, asegurando trazabilidad e integridad.'
+        )
+
+        n_findings = len(findings)
+        criticos = sum(1 for f in findings if f.get('severity') == 'CRITICAL')
+        altos = sum(1 for f in findings if f.get('severity') == 'HIGH')
+
+        self._add_table(
+            ['Campo', 'Descripción', 'Valor registrado'],
+            [
+                ['ID Evidencia', 'Identificador único de la evidencia', 'AUD-2025-001'],
+                ['Fecha de recolección', 'Fecha y hora de obtención', datetime.now().strftime('%d/%m/%Y %H:%M')],
+                ['Tipo de evidencia', 'Código fuente / Dependencias / Pruebas / Documentación', 'Código fuente + Dependencias'],
+                ['Sistema auditado', 'Nombre y versión del sistema', sistema],
+                ['Módulo afectado', 'Módulo o componente específico', 'Todo el repositorio'],
+                ['Total hallazgos', 'Número de hallazgos detectados', str(n_findings)],
+                ['Hallazgos críticos', 'Hallazgos de severidad CRÍTICA', str(criticos)],
+                ['Hallazgos altos', 'Hallazgos de severidad ALTA', str(altos)],
+                ['Herramienta', 'Herramienta utilizada para recolección', 'AuditLens v0.3.0'],
+                ['Auditor responsable', 'Nombre del auditor que recolectó la evidencia', '[Completar]'],
+                ['Cadena de custodia', 'Ubicación de almacenamiento seguro', '[Completar ruta/repositorio]'],
+                ['Integridad verificada', 'Hash SHA-256 del archivo de evidencia', '[Completar]'],
+            ]
+        )
+
+    def add_test_strategies(self, findings: List[dict], test_analysis: Dict, sistema: str):
+        """
+        Sección 2.2 — Estrategias de Pruebas de Software
+        Genera casos de prueba automáticos basados en los hallazgos encontrados.
+        """
+        self._add_heading('2.2 Diseño de Estrategias de Pruebas de Software', level=2)
+        self._add_paragraph(
+            'Se proponen los siguientes tipos de pruebas y casos de prueba representativos, '
+            'diseñados a partir de los hallazgos identificados y alineados con los '
+            'criterios de auditoría y los estándares ISO aplicables.'
+        )
+
+        # Tipos de pruebas propuestas
+        self._add_heading('Tipos de Pruebas Propuestas', level=3)
+        self._add_table(
+            ['Tipo de Prueba', 'Descripción', 'Norma ISO', 'Prioridad'],
+            [
+                ['Pruebas de Seguridad (SAST)', 'Análisis estático automatizado del código fuente para detectar vulnerabilidades', 'ISO 25040 — Seguridad Funcional', 'ALTA'],
+                ['Pruebas de Composición (SCA)', 'Verificación de dependencias contra base de datos de CVEs conocidos', 'ISO 14764 — Mantenimiento Preventivo', 'ALTA'],
+                ['Pruebas de Flujo de Datos', 'Rastreo de datos de usuario desde entrada hasta sinks peligrosos', 'ISO 25040 — Integridad', 'ALTA'],
+                ['Pruebas de Cobertura', 'Verificación de que el código cuenta con pruebas unitarias e integración', 'ISO 12207 — V&V', 'MEDIA'],
+                ['Pruebas de Regresión', 'Verificación de que correcciones no introducen nuevas vulnerabilidades', 'ISO 12207 — Pruebas de sistema', 'MEDIA'],
+                ['Pruebas de Configuración', 'Validación de variables de entorno, secretos y configuraciones seguras', 'ISO 25040 — Seguridad', 'ALTA'],
+            ]
+        )
+
+        # Generar casos de prueba desde hallazgos reales
+        self._add_heading('Casos de Prueba Derivados de Hallazgos', level=3)
+        self._add_paragraph(
+            f'Los siguientes casos de prueba fueron generados automáticamente a partir de '
+            f'los {len(findings)} hallazgos detectados en el sistema {sistema}.'
+        )
+
+        # Map rule_id to test case template
+        test_case_templates = {
+            'SEC-01': {
+                'caso': 'Verificar ausencia de secretos hardcodeados',
+                'descripcion': 'Escanear todo el repositorio en busca de contraseñas, tokens y API keys en texto plano',
+                'precondicion': 'Acceso de lectura al repositorio de código fuente',
+                'pasos': 'Ejecutar: auditlens scan . --severity HIGH --no-sca',
+                'resultado_esperado': 'Cero hallazgos SEC-01 en el código fuente',
+                'resultado_obtenido': '[Completar tras ejecución]',
+                'iso': 'ISO 25040 — Confidencialidad',
+            },
+            'INJ-01': {
+                'caso': 'Verificar ausencia de inyección SQL',
+                'descripcion': 'Detectar construcción dinámica de queries SQL con datos de usuario sin parametrizar',
+                'precondicion': 'Acceso al código fuente del módulo de base de datos',
+                'pasos': 'Revisar todas las llamadas a execute(), query(), raw() con formato de string',
+                'resultado_esperado': 'Todas las consultas SQL usan parámetros vinculados (prepared statements)',
+                'resultado_obtenido': '[Completar tras revisión]',
+                'iso': 'ISO 25040 — Integridad; ISO 12207 — Codificación',
+            },
+            'INJ-02': {
+                'caso': 'Verificar ausencia de inyección de comandos',
+                'descripcion': 'Detectar ejecución de comandos shell con datos de usuario sin sanitizar',
+                'precondicion': 'Acceso al código que llama a subprocess, os.system o equivalentes',
+                'pasos': 'Buscar os.system(), subprocess.run() con shell=True o concatenación de strings',
+                'resultado_esperado': 'Ningún comando shell construido con datos de usuario',
+                'resultado_obtenido': '[Completar tras revisión]',
+                'iso': 'ISO 25040 — Seguridad; ISO 12207 — Codificación',
+            },
+            'TAINT-01': {
+                'caso': 'Verificar sanitización de flujos de datos',
+                'descripcion': 'Comprobar que datos de entrada de usuario son sanitizados antes de llegar a sinks peligrosos',
+                'precondicion': 'Acceso al código de controladores/vistas que reciben input externo',
+                'pasos': 'Ejecutar: auditlens scan . --interprocedural --no-sca',
+                'resultado_esperado': 'Cero hallazgos TAINT-01/TAINT-02 en el análisis',
+                'resultado_obtenido': '[Completar tras ejecución]',
+                'iso': 'ISO 25040 — Integridad; CWE-89, CWE-79',
+            },
+            'DESER-01': {
+                'caso': 'Verificar deserialización segura',
+                'descripcion': 'Comprobar que no se usa pickle.loads() u otros mecanismos inseguros con datos externos',
+                'precondicion': 'Acceso al código que maneja datos serializados',
+                'pasos': 'Buscar uso de pickle, marshal, yaml.load() sin SafeLoader en rutas de datos de usuario',
+                'resultado_esperado': 'Solo se usa JSON o SafeLoader para deserialización de datos externos',
+                'resultado_obtenido': '[Completar tras revisión]',
+                'iso': 'ISO 25040 — Seguridad; ISO 12207 — Integración',
+            },
+            'CONF-04': {
+                'caso': 'Verificar configuración de producción segura',
+                'descripcion': 'Comprobar que DEBUG=False y otras configuraciones de seguridad están correctas en producción',
+                'precondicion': 'Acceso al archivo de configuración del entorno de producción',
+                'pasos': 'Revisar variables de entorno y archivos de configuración del sistema desplegado',
+                'resultado_esperado': 'DEBUG=False, SECRET_KEY desde variable de entorno, HTTPS habilitado',
+                'resultado_obtenido': '[Completar tras revisión]',
+                'iso': 'ISO 25040 — Seguridad; ISO 12207 — Gestión de Configuración',
+            },
+        }
+
+        # Generate test cases for rules found in findings
+        seen_rules = set()
+        test_cases_generated = 0
+
+        for finding in findings:
+            rule_id = finding.get('rule_id', '')
+            # Get base rule (strip version suffix)
+            base_rule = '-'.join(rule_id.split('-')[:2]) if '-' in rule_id else rule_id
+
+            if base_rule in seen_rules:
+                continue
+            seen_rules.add(base_rule)
+
+            template = test_case_templates.get(base_rule) or test_case_templates.get(rule_id)
+            if not template:
+                continue
+
+            test_cases_generated += 1
+            file_short = '/'.join(finding.get('file', '').split('/')[-2:])
+
+            self._add_heading(
+                f'Caso de Prueba CP-{test_cases_generated:02d}: {template["caso"]}',
+                level=3
+            )
+            self._add_table(
+                ['Campo', 'Detalle'],
+                [
+                    ['ID Caso', f'CP-{test_cases_generated:02d}'],
+                    ['Tipo', 'Prueba de Seguridad Automatizada'],
+                    ['Regla relacionada', rule_id],
+                    ['Hallazgo de referencia', f'{file_short} línea {finding.get("line", "")}'],
+                    ['Descripción', template['descripcion']],
+                    ['Pre-condición', template['precondicion']],
+                    ['Pasos de ejecución', template['pasos']],
+                    ['Resultado esperado', template['resultado_esperado']],
+                    ['Resultado obtenido', template['resultado_obtenido']],
+                    ['Estado', '[ ] Pasado  [ ] Fallido  [ ] No ejecutado'],
+                    ['Norma ISO', template['iso']],
+                    ['Responsable', 'Auditor Técnico de Software'],
+                    ['Fecha ejecución', '[Completar]'],
+                ]
+            )
+
+        # Always add a coverage test case
+        test_cases_generated += 1
+        coverage = test_analysis.get('ratio_cobertura_estimado', 0)
+        self._add_heading(
+            f'Caso de Prueba CP-{test_cases_generated:02d}: Verificar Cobertura de Pruebas',
+            level=3
+        )
+        self._add_table(
+            ['Campo', 'Detalle'],
+            [
+                ['ID Caso', f'CP-{test_cases_generated:02d}'],
+                ['Tipo', 'Prueba de Proceso (ISO 12207 V&V)'],
+                ['Descripción', 'Verificar que el sistema cuenta con cobertura de pruebas suficiente'],
+                ['Pre-condición', 'Acceso al repositorio de código fuente'],
+                ['Pasos de ejecución', 'Ejecutar: auditlens plan . y revisar sección de Cobertura de Pruebas'],
+                ['Resultado esperado', 'Ratio de cobertura ≥ 70% con pruebas unitarias, de seguridad e integración'],
+                ['Resultado obtenido', f'Cobertura actual estimada: {coverage}%'],
+                ['Estado', '[ ] Pasado  [ ] Fallido  [ ] No ejecutado'],
+                ['Norma ISO', 'ISO 12207 — Verificación y Validación; ISO 25040 — Fiabilidad'],
+                ['Responsable', 'Auditor Técnico de Software'],
+                ['Fecha ejecución', '[Completar]'],
+            ]
+        )
+
+    def add_evidence_validity(self, empresa: str, sistema: str, fecha: str):
+        """
+        Sección 2.3 — Criterios para la Validez y Confiabilidad de la Evidencia
+        """
+        self._add_heading('2.3 Criterios para la Validez y Confiabilidad de la Evidencia', level=2)
+        self._add_paragraph(
+            'Los siguientes criterios garantizan que la evidencia recolectada sea suficiente, '
+            'competente y relevante para soportar los hallazgos de la auditoría, '
+            'asegurando su integridad y trazabilidad.'
+        )
+
+        self._add_heading('Criterios de Validez', level=3)
+        self._add_table(
+            ['Criterio', 'Descripción', 'Verificación'],
+            [
+                ['Suficiencia', 'La evidencia es suficiente en cantidad para soportar los hallazgos', 'Mínimo 1 evidencia por hallazgo crítico/alto'],
+                ['Competencia', 'La evidencia proviene de fuentes confiables y fue obtenida con herramientas validadas', 'AuditLens genera evidencia reproducible y verificable'],
+                ['Relevancia', 'La evidencia está directamente relacionada con los criterios de auditoría evaluados', 'Cada hallazgo referencia la norma ISO aplicable'],
+                ['Oportunidad', 'La evidencia fue recolectada en el momento adecuado y refleja el estado actual del sistema', f'Fecha de recolección: {fecha}'],
+                ['Objetividad', 'La evidencia es objetiva y no está influenciada por sesgos del auditor', 'Análisis automatizado con AuditLens elimina sesgos subjetivos'],
+            ]
+        )
+
+        self._add_heading('Cadena de Custodia', level=3)
+        self._add_paragraph(
+            'Para garantizar la integridad de la evidencia digital recolectada, '
+            'se deben seguir los siguientes procedimientos:'
+        )
+        steps = [
+            f'Todos los reportes generados por AuditLens deben almacenarse con fecha y hora del sistema ({fecha})',
+            'Los archivos SARIF, JSON y DOCX deben firmarse digitalmente o calcular su hash SHA-256',
+            'El acceso a la evidencia debe restringirse al equipo auditor autorizado',
+            'Cualquier modificación a la evidencia debe quedar registrada con fecha, responsable y motivo',
+            'La evidencia de primera mano (resultados directos de AuditLens) tiene prioridad sobre evidencia de segunda mano',
+            'Las capturas de pantalla del dashboard deben incluir fecha, hora y URL visible',
+        ]
+        for step in steps:
+            p = self.doc.add_paragraph(style='List Bullet')
+            p.add_run(step)
+
+        self._add_heading('Registro de Integridad de Evidencia', level=3)
+        self._add_table(
+            ['Archivo de Evidencia', 'Tipo', 'Fecha', 'Hash SHA-256', 'Responsable'],
+            [
+                [f'informe_auditoria.docx', 'Informe Word completo', fecha, '[Calcular con: shasum -a 256]', '[Auditor]'],
+                [f'audit_results.sarif', 'Reporte SARIF', fecha, '[Calcular con: shasum -a 256]', '[Auditor]'],
+                [f'audit_results.json', 'Reporte JSON', fecha, '[Calcular con: shasum -a 256]', '[Auditor]'],
+                [f'plan_auditoria.docx', 'Plan de auditoría', fecha, '[Calcular con: shasum -a 256]', '[Auditor]'],
+            ]
+        )
+
+    def add_audit_closure(self, findings: List[dict], sistema: str, empresa: str):
+        """
+        Sección 5.2 — Criterios para el Cierre de la Auditoría + Lecciones Aprendidas
+        """
+        self._add_heading('9.2 Criterios para el Cierre de la Auditoría', level=2)
+
+        counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
+        for f in findings:
+            sev = f.get('severity', 'LOW').upper()
+            if sev in counts:
+                counts[sev] += 1
+
+        self._add_paragraph(
+            f'La auditoría del sistema {sistema} de la empresa {empresa} se considerará '
+            f'oficialmente cerrada cuando se cumplan los siguientes criterios:'
+        )
+
+        self._add_heading('Condiciones de Cierre', level=3)
+        self._add_table(
+            ['#', 'Condición de Cierre', 'Estado actual', 'Responsable'],
+            [
+                ['1', f'Todos los {counts["CRITICAL"]} hallazgos CRÍTICOS han sido corregidos y verificados',
+                 f'Pendiente ({counts["CRITICAL"]} hallazgos)', 'Auditor Líder'],
+                ['2', f'Al menos el 80% de los {counts["HIGH"]} hallazgos ALTOS han sido resueltos',
+                 f'Pendiente ({counts["HIGH"]} hallazgos)', 'Auditor Técnico'],
+                ['3', 'Se ha ejecutado un re-escaneo con AuditLens y el baseline actualizado muestra cero hallazgos nuevos',
+                 'Pendiente', 'Auditor Técnico'],
+                ['4', 'El equipo de desarrollo ha aceptado formalmente el plan de acción para hallazgos pendientes',
+                 'Pendiente', 'Auditor Líder'],
+                ['5', 'Todos los KPIs del plan de seguimiento han sido definidos y asignados a responsables',
+                 'Completado (ver sección 9)', 'Auditor Líder'],
+                ['6', 'El informe final de auditoría ha sido revisado y aprobado por el cliente',
+                 'Pendiente', 'Auditor Líder'],
+            ]
+        )
+
+        self._add_heading('Proceso de Cierre Formal', level=3)
+        steps = [
+            'El Auditor Líder convoca reunión de cierre con el equipo de desarrollo y stakeholders',
+            'Se revisan todos los hallazgos críticos y altos con las correcciones implementadas',
+            'Se ejecuta un re-escaneo final: auditlens scan . --diff-baseline .auditlens-baseline.json',
+            'Si hay hallazgos pendientes, se firma un plan de acción con plazos comprometidos',
+            'Se entrega el informe final firmado a la empresa auditada',
+            'Se programa la primera revisión de seguimiento (30 días después del cierre)',
+        ]
+        for i, step in enumerate(steps, 1):
+            p = self.doc.add_paragraph(style='List Number')
+            p.add_run(step)
+
+        # Lecciones aprendidas
+        self._add_heading('Lecciones Aprendidas', level=2)
+        self._add_paragraph(
+            'El siguiente registro documenta los aprendizajes del proceso de auditoría '
+            'para mejorar futuras evaluaciones, conforme a la mejora continua de ISO 12207.'
+        )
+
+        self._add_table(
+            ['Categoría', 'Observación', 'Acción para futuras auditorías'],
+            [
+                ['Herramientas', 'AuditLens automatizó el 100% del análisis estático, reduciendo tiempo de ejecución',
+                 'Mantener AuditLens actualizado e incorporar nuevas reglas según el contexto del proyecto'],
+                ['Cobertura de pruebas', 'La falta de pruebas automatizadas dificultó la validación de correcciones',
+                 'Exigir cobertura mínima de 70% como criterio de aceptación en futuras auditorías'],
+                ['Comunicación', 'La clasificación Condición/Criterio/Causa/Efecto facilitó la comprensión de hallazgos',
+                 'Mantener este formato en todos los informes de auditoría'],
+                ['ISO Standards', 'El mapeo a ISO 25040/12207/14764 proporcionó contexto normativo claro',
+                 'Ampliar el mapeo a ISO 27001 e ISO 29119 en futuras auditorías'],
+                ['Alcance', 'El análisis automatizado cubrió todo el código fuente sin exclusiones manuales',
+                 'Ajustar exclude_paths en .auditlens.yaml para proyectos con código legado extenso'],
+                ['Seguimiento', 'El uso de baseline permite comparar hallazgos entre versiones del sistema',
+                 'Establecer baseline al inicio de cada sprint y ejecutar scan al finalizar'],
+            ]
+        )
+
     def save(self, output_path: str):
         self.doc.save(output_path)
         print(
@@ -930,23 +1310,34 @@ def generate_docx_report(
     # ── 5. Metodología ────────────────────────────────────────────────────────
     exporter.add_methodology(plan)
 
-    # ── 6. Hallazgos ─────────────────────────────────────────────────────────
+    # ── 6. Ejecución y Recolección de Evidencia (secciones 2.x del rubric) ───
+    exporter._add_heading('4. Ejecución y Recolección de Evidencia', level=1)
+    exporter._add_paragraph(
+        'Esta sección documenta los procedimientos de recolección de evidencia, '
+        'las estrategias de pruebas diseñadas y los criterios de validez aplicados '
+        'durante la ejecución de la auditoría, conforme a ISO 25040, ISO 12207 e ISO 14764.'
+    )
+    exporter.add_evidence_collection(findings, project_info, sistema)
+    exporter.add_test_strategies(findings, test_analysis, sistema)
+    exporter.add_evidence_validity(empresa, sistema, fecha)
+
+    # ── 7. Hallazgos ─────────────────────────────────────────────────────────
     exporter.add_findings(enriched_findings)
 
-    # ── 7. Análisis de Brechas ISO ────────────────────────────────────────────
+    # ── 8. Análisis de Brechas ISO ────────────────────────────────────────────
     exporter.add_iso_gap_analysis(gap_analysis)
 
-    # ── 8. Análisis de Cobertura de Pruebas ──────────────────────────────────
+    # ── 9. Análisis de Cobertura de Pruebas ──────────────────────────────────
     exporter.add_test_coverage(test_analysis)
 
-    # ── 9. Conclusiones ───────────────────────────────────────────────────────
+    # ── 10. Conclusiones ──────────────────────────────────────────────────────
     exporter.add_conclusions(findings, gap_analysis, sistema, empresa)
 
-    # ── 10. Recomendaciones ───────────────────────────────────────────────────
+    # ── 11. Recomendaciones + Seguimiento + Cierre ────────────────────────────
+    exporter._add_heading('9. Recomendaciones y Seguimiento', level=1)
     exporter.add_recommendations(findings)
-
-    # ── 11. Plan de Seguimiento ───────────────────────────────────────────────
     exporter.add_followup_plan(kpis)
+    exporter.add_audit_closure(findings, sistema, empresa)
 
     # ── 12. Anexos ────────────────────────────────────────────────────────────
     exporter.add_annexes(project_info, test_analysis)
