@@ -29,6 +29,7 @@ setup(
         "tree-sitter-javascript>=0.21",
         "fpdf2>=2.7",
         "requests>=2.28",
+        "python-docx>=1.1",
     ],
     extras_require={
         # Optional language support

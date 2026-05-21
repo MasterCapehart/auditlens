@@ -238,6 +238,7 @@ def run_static_analysis(
     export_sarif: bool = False,
     export_pdf: bool = False,
     export_json: bool = False,
+    export_docx: bool = False,
     output_path: Optional[str] = None,
     min_severity: str = 'LOW',
     run_sca: bool = True,
@@ -245,6 +246,10 @@ def run_static_analysis(
     diff_baseline: Optional[str] = None,
     record_history: bool = True,
     interprocedural: bool = False,
+    empresa: str = 'Empresa',
+    sistema: str = 'Sistema de Software',
+    auditor: str = '[Auditor por asignar]',
+    trimestre: str = 'primer trimestre de 2025',
 ) -> int:
     """
     Run full analysis. Returns exit code:
@@ -406,23 +411,43 @@ def run_static_analysis(
     if pdf_exporter:
         pdf_exporter.generate_report(output_path or 'audit_report.pdf')
 
-    # T2-3: JSON output
+    # JSON output
     if export_json:
         json_path = output_path or 'audit_results.json'
         with open(json_path, 'w', encoding='utf-8') as fh:
             json.dump(reported_findings, fh, indent=2, default=str)
-        print(f'\033[92m[AuditLens]\033[0m JSON report saved: \033[1m{os.path.abspath(json_path)}\033[0m')
+        print(f'\033[92m[AuditLens]\033[0m Reporte JSON guardado: \033[1m{os.path.abspath(json_path)}\033[0m')
 
-    # T3-3: persist history
+    # Word/DOCX audit report (full audit document)
+    if export_docx:
+        docx_path = output_path or 'informe_auditoria.docx'
+        try:
+            from .docx_exporter import generate_docx_report
+            generate_docx_report(
+                findings=reported_findings,
+                scan_path=path,
+                output_path=docx_path,
+                empresa=empresa,
+                sistema=sistema,
+                auditor=auditor,
+                trimestre=trimestre,
+            )
+        except ImportError:
+            print(
+                '\033[93m[AuditLens]\033[0m python-docx no instalado. '
+                'Instala con: pip install python-docx --break-system-packages'
+            )
+
+    # Persist history
     if record_history and all_findings is not None:
         try:
             from .history import record_scan
             record_scan(path, all_findings)
         except Exception:
-            pass  # history is non-critical
+            pass
 
     # Dispatch notifications if configured
-    if cfg.baseline is None:  # only notify on fresh scans
+    if cfg.baseline is None:
         notif_config = getattr(cfg, 'notifications', None)
         if notif_config:
             try:
@@ -431,7 +456,7 @@ def run_static_analysis(
             except Exception as exc:
                 print(f'\033[93m[AuditLens] Notification error: {exc}\033[0m')
 
-    # T1-2: respect fail_on from config
+    # Respect fail_on from config
     fail_rank = _SEVERITY_RANK.get(cfg.fail_on, 0)
     has_critical_findings = any(
         _SEVERITY_RANK.get(f['severity'].upper(), 0) >= fail_rank

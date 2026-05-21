@@ -47,3 +47,4 @@ auditlens_ipc_*.key
 .idea/
 *.swp
 *.swo
+.env
