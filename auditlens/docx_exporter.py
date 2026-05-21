@@ -84,51 +84,81 @@ class DocxReportExporter:
         section.left_margin = Cm(3)
         section.right_margin = Cm(2.5)
 
-    def add_table_of_contents(self):
+    def add_table_of_contents(self, findings_count: int = 0):
         """
-        Insert an automatic Table of Contents (Tabla de Contenidos).
-        Word generates the page numbers when the user opens and updates the TOC
-        (right-click → Update Field, or Ctrl+A then F9).
+        Insert a static Table of Contents with all document sections.
+        Uses actual paragraph entries instead of Word TOC field,
+        so it displays immediately without requiring manual update.
         """
+        from docx.shared import Pt, RGBColor, Cm
         from docx.oxml.ns import qn
         from docx.oxml import OxmlElement
-        from docx.shared import Pt
         from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-        self._add_heading('Tabla de Contenidos', level=1)
+        # Section heading
+        p = self.doc.add_heading('Tabla de Contenidos', level=1)
 
-        # Word TOC field instruction
-        paragraph = self.doc.add_paragraph()
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        run = paragraph.add_run()
-        fldChar_begin = OxmlElement('w:fldChar')
-        fldChar_begin.set(qn('w:fldCharType'), 'begin')
-        run._r.append(fldChar_begin)
+        self.doc.add_paragraph()
 
-        instrText = OxmlElement('w:instrText')
-        instrText.set(qn('xml:space'), 'preserve')
-        instrText.text = (
-            'TOC \\o "1-3" \\h \\z \\u'
-        )  # levels 1-3, hyperlinked, hide tab leader in web view, use applied styles
-        run._r.append(instrText)
+        # Define all sections with their indent level (0=main, 1=sub)
+        entries = [
+            (0, '1.', 'Resumen Ejecutivo'),
+            (0, '2.', 'Introducción'),
+            (1, '2.1', 'Propósito y Alcance'),
+            (1, '2.2', 'Objetivos SMART'),
+            (0, '3.', 'Metodología de Auditoría'),
+            (1, '3.1', 'Técnicas y Herramientas'),
+            (1, '3.2', 'Fases del Proceso de Auditoría'),
+            (1, '3.3', 'Criterios de Auditoría (ISO 25040 / 12207 / 14764)'),
+            (1, '3.4', 'Equipo Auditor'),
+            (0, '4.', f'Hallazgos de Auditoría ({findings_count} hallazgos)'),
+            (0, '5.', 'Análisis de Brechas ISO'),
+            (1, '5.1', 'ISO/IEC 25040 — Calidad del Producto Software'),
+            (1, '5.2', 'ISO/IEC 12207 — Ciclo de Vida del Software'),
+            (1, '5.3', 'ISO/IEC 14764 — Mantenimiento del Software'),
+            (0, '6.', 'Análisis de Cobertura de Pruebas'),
+            (0, '7.', 'Conclusiones'),
+            (0, '8.', 'Recomendaciones'),
+            (1, '8.1', 'Acciones Inmediatas (CRÍTICO)'),
+            (1, '8.2', 'Acciones Urgentes (ALTO)'),
+            (1, '8.3', 'Acciones Planificadas (MEDIO)'),
+            (0, '9.', 'Plan de Seguimiento'),
+            (0, '10.', 'Anexos'),
+            (1, 'A.',  'Estructura del Proyecto'),
+            (1, 'B.',  'Archivos sin Cobertura de Pruebas'),
+            (1, 'C.',  'Herramienta Utilizada'),
+        ]
 
-        fldChar_sep = OxmlElement('w:fldChar')
-        fldChar_sep.set(qn('w:fldCharType'), 'separate')
-        run._r.append(fldChar_sep)
+        for level, num, title in entries:
+            para = self.doc.add_paragraph()
+            para.paragraph_format.space_before = Pt(2)
+            para.paragraph_format.space_after = Pt(2)
 
-        # Placeholder text shown before first update
-        placeholder_para = self.doc.add_paragraph()
-        placeholder_run = placeholder_para.add_run(
-            'Haga clic derecho aquí → "Actualizar campo" para generar el índice con números de página.'
-        )
-        placeholder_run.font.size = Pt(10)
-        placeholder_run.font.italic = True
-        placeholder_run.font.color.rgb = __import__('docx').shared.RGBColor(128, 128, 128)
+            # Left indent for subsections
+            if level == 1:
+                para.paragraph_format.left_indent = Cm(1)
 
-        fldChar_end = OxmlElement('w:fldChar')
-        fldChar_end.set(qn('w:fldCharType'), 'end')
-        run._r.append(fldChar_end)
+            # Number
+            run_num = para.add_run(f'{num}  ')
+            run_num.bold = (level == 0)
+            run_num.font.size = Pt(11 if level == 0 else 10)
+            run_num.font.color.rgb = RGBColor(68, 114, 196)
 
+            # Title
+            run_title = para.add_run(title)
+            run_title.bold = (level == 0)
+            run_title.font.size = Pt(11 if level == 0 else 10)
+            if level == 1:
+                run_title.font.color.rgb = RGBColor(80, 80, 80)
+
+            # Tab + dotted leader + dots
+            run_dots = para.add_run(
+                ' ' + ('·' * (55 - len(num) - len(title) - level * 4)).strip()
+            )
+            run_dots.font.size = Pt(9)
+            run_dots.font.color.rgb = RGBColor(180, 180, 180)
+
+        self.doc.add_paragraph()
         self.doc.add_page_break()
 
     def _add_heading(self, text: str, level: int = 1, color=None):
@@ -780,7 +810,7 @@ def generate_docx_report(
     exporter.add_cover_page(empresa, sistema, auditor, fecha, trimestre)
 
     # ── 2. Tabla de Contenidos ────────────────────────────────────────────────
-    exporter.add_table_of_contents()
+    exporter.add_table_of_contents(findings_count=len(findings))
 
     # ── 3. Resumen Ejecutivo ──────────────────────────────────────────────────
     exporter.add_executive_summary(findings, gap_analysis, test_analysis, empresa, sistema)
