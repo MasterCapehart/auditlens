@@ -68,6 +68,7 @@ class DocxReportExporter:
 
         self.doc = Document()
         self._setup_styles()
+        self._bm_counter = 0  # bookmark ID counter
 
     def _setup_styles(self):
         """Configure default document styles."""
@@ -84,82 +85,178 @@ class DocxReportExporter:
         section.left_margin = Cm(3)
         section.right_margin = Cm(2.5)
 
-    def add_table_of_contents(self, findings_count: int = 0):
+    # ── Bookmark / hyperlink helpers ──────────────────────────────────────────
+
+    def _add_bookmark(self, paragraph, bookmark_id: int, bookmark_name: str):
         """
-        Insert a static Table of Contents with all document sections.
-        Uses actual paragraph entries instead of Word TOC field,
-        so it displays immediately without requiring manual update.
+        Insert a Word bookmark at the start of a paragraph.
+        This is the anchor that TOC hyperlinks point to.
         """
-        from docx.shared import Pt, RGBColor, Cm
         from docx.oxml.ns import qn
         from docx.oxml import OxmlElement
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-        # Section heading
-        p = self.doc.add_heading('Tabla de Contenidos', level=1)
+        tag = paragraph._p
+        # bookmarkStart
+        bm_start = OxmlElement('w:bookmarkStart')
+        bm_start.set(qn('w:id'), str(bookmark_id))
+        bm_start.set(qn('w:name'), bookmark_name)
+        tag.insert(0, bm_start)
+        # bookmarkEnd
+        bm_end = OxmlElement('w:bookmarkEnd')
+        bm_end.set(qn('w:id'), str(bookmark_id))
+        tag.append(bm_end)
 
+    def _add_hyperlink_to_bookmark(self, paragraph, bookmark_name: str,
+                                    display_text: str, bold: bool = False,
+                                    color=None, size: int = 11):
+        """
+        Add a run inside a paragraph that is a clickable internal hyperlink
+        pointing to bookmark_name.
+        """
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        from docx.shared import RGBColor, Pt
+
+        # <w:hyperlink w:anchor="bookmark_name" ...>
+        hyperlink = OxmlElement('w:hyperlink')
+        hyperlink.set(qn('w:anchor'), bookmark_name)
+        hyperlink.set(qn('r:id'), '')  # internal anchor, no rId needed
+
+        # Run inside hyperlink
+        run = OxmlElement('w:r')
+
+        # Run properties
+        rPr = OxmlElement('w:rPr')
+        # Underline
+        u = OxmlElement('w:u')
+        u.set(qn('w:val'), 'single')
+        rPr.append(u)
+        # Color — blue link or custom
+        c = OxmlElement('w:color')
+        if color:
+            c.set(qn('w:val'), '%02X%02X%02X' % color)
+        else:
+            c.set(qn('w:val'), '1155CC')  # standard hyperlink blue
+        rPr.append(c)
+        # Font size
+        sz = OxmlElement('w:sz')
+        sz.set(qn('w:val'), str(size * 2))
+        rPr.append(sz)
+        # Bold
+        if bold:
+            b = OxmlElement('w:b')
+            rPr.append(b)
+        run.append(rPr)
+
+        # Text
+        t = OxmlElement('w:t')
+        t.set(qn('xml:space'), 'preserve')
+        t.text = display_text
+        run.append(t)
+
+        hyperlink.append(run)
+        paragraph._p.append(hyperlink)
+
+    def add_table_of_contents(self, findings_count: int = 0):
+        """
+        Insert a clickable Table of Contents.
+        Each entry is a Word internal hyperlink pointing to a bookmark
+        placed on the corresponding heading — so clicking navigates directly.
+        """
+        from docx.shared import Pt, RGBColor, Cm
+
+        # Page heading (no bookmark needed — TOC itself has no link)
+        self.doc.add_heading('Tabla de Contenidos', level=1)
         self.doc.add_paragraph()
 
-        # Define all sections with their indent level (0=main, 1=sub)
+        # (level, number_label, display_title, bookmark_name)
         entries = [
-            (0, '1.', 'Resumen Ejecutivo'),
-            (0, '2.', 'Introducción'),
-            (1, '2.1', 'Propósito y Alcance'),
-            (1, '2.2', 'Objetivos SMART'),
-            (0, '3.', 'Metodología de Auditoría'),
-            (1, '3.1', 'Técnicas y Herramientas'),
-            (1, '3.2', 'Fases del Proceso de Auditoría'),
-            (1, '3.3', 'Criterios de Auditoría (ISO 25040 / 12207 / 14764)'),
-            (1, '3.4', 'Equipo Auditor'),
-            (0, '4.', f'Hallazgos de Auditoría ({findings_count} hallazgos)'),
-            (0, '5.', 'Análisis de Brechas ISO'),
-            (1, '5.1', 'ISO/IEC 25040 — Calidad del Producto Software'),
-            (1, '5.2', 'ISO/IEC 12207 — Ciclo de Vida del Software'),
-            (1, '5.3', 'ISO/IEC 14764 — Mantenimiento del Software'),
-            (0, '6.', 'Análisis de Cobertura de Pruebas'),
-            (0, '7.', 'Conclusiones'),
-            (0, '8.', 'Recomendaciones'),
-            (1, '8.1', 'Acciones Inmediatas (CRÍTICO)'),
-            (1, '8.2', 'Acciones Urgentes (ALTO)'),
-            (1, '8.3', 'Acciones Planificadas (MEDIO)'),
-            (0, '9.', 'Plan de Seguimiento'),
-            (0, '10.', 'Anexos'),
-            (1, 'A.',  'Estructura del Proyecto'),
-            (1, 'B.',  'Archivos sin Cobertura de Pruebas'),
-            (1, 'C.',  'Herramienta Utilizada'),
+            (0, '1.',   'Resumen Ejecutivo',                          'sec_resumen'),
+            (0, '2.',   'Introducción',                               'sec_intro'),
+            (1, '2.1',  'Propósito y Alcance',                        'sec_alcance'),
+            (1, '2.2',  'Objetivos SMART',                            'sec_smart'),
+            (0, '3.',   'Metodología de Auditoría',                   'sec_metodologia'),
+            (1, '3.1',  'Técnicas y Herramientas',                    'sec_tecnicas'),
+            (1, '3.2',  'Fases del Proceso',                          'sec_fases'),
+            (1, '3.3',  'Criterios ISO 25040 / 12207 / 14764',        'sec_criterios'),
+            (1, '3.4',  'Equipo Auditor',                             'sec_roles'),
+            (0, '4.',   f'Hallazgos ({findings_count} hallazgos)',    'sec_hallazgos'),
+            (0, '5.',   'Análisis de Brechas ISO',                    'sec_brechas'),
+            (1, '5.1',  'ISO 25040 — Calidad del Producto',           'sec_iso25040'),
+            (1, '5.2',  'ISO 12207 — Ciclo de Vida',                  'sec_iso12207'),
+            (1, '5.3',  'ISO 14764 — Mantenimiento',                  'sec_iso14764'),
+            (0, '6.',   'Cobertura de Pruebas',                       'sec_tests'),
+            (0, '7.',   'Conclusiones',                               'sec_conclusiones'),
+            (0, '8.',   'Recomendaciones',                            'sec_recomendaciones'),
+            (1, '8.1',  'Acciones Inmediatas (CRÍTICO)',               'sec_rec_critico'),
+            (1, '8.2',  'Acciones Urgentes (ALTO)',                   'sec_rec_alto'),
+            (1, '8.3',  'Acciones Planificadas (MEDIO)',              'sec_rec_medio'),
+            (0, '9.',   'Plan de Seguimiento',                        'sec_seguimiento'),
+            (0, '10.',  'Anexos',                                     'sec_anexos'),
+            (1, 'A.',   'Estructura del Proyecto',                    'sec_anexo_a'),
+            (1, 'B.',   'Archivos sin Cobertura de Pruebas',          'sec_anexo_b'),
+            (1, 'C.',   'Herramienta Utilizada',                      'sec_anexo_c'),
         ]
 
-        for level, num, title in entries:
+        for level, num, title, bookmark in entries:
             para = self.doc.add_paragraph()
-            para.paragraph_format.space_before = Pt(2)
-            para.paragraph_format.space_after = Pt(2)
-
-            # Left indent for subsections
+            para.paragraph_format.space_before = Pt(1)
+            para.paragraph_format.space_after = Pt(1)
             if level == 1:
-                para.paragraph_format.left_indent = Cm(1)
+                para.paragraph_format.left_indent = Cm(1.2)
 
-            # Number
-            run_num = para.add_run(f'{num}  ')
-            run_num.bold = (level == 0)
-            run_num.font.size = Pt(11 if level == 0 else 10)
-            run_num.font.color.rgb = RGBColor(68, 114, 196)
+            # Build display text: "1.  Título ········"
+            dots_count = max(4, 60 - len(num) - len(title) - level * 6)
+            display = f'{num}  {title}  {"·" * dots_count}'
 
-            # Title
-            run_title = para.add_run(title)
-            run_title.bold = (level == 0)
-            run_title.font.size = Pt(11 if level == 0 else 10)
-            if level == 1:
-                run_title.font.color.rgb = RGBColor(80, 80, 80)
+            is_main = (level == 0)
+            link_color = (44, 90, 160) if is_main else (90, 110, 160)
 
-            # Tab + dotted leader + dots
-            run_dots = para.add_run(
-                ' ' + ('·' * (55 - len(num) - len(title) - level * 4)).strip()
+            self._add_hyperlink_to_bookmark(
+                para,
+                bookmark_name=bookmark,
+                display_text=display,
+                bold=is_main,
+                color=link_color,
+                size=11 if is_main else 10,
             )
-            run_dots.font.size = Pt(9)
-            run_dots.font.color.rgb = RGBColor(180, 180, 180)
 
         self.doc.add_paragraph()
         self.doc.add_page_break()
+
+        # Store bookmark counter for headings
+        self._bm_counter = 0
+        self._bm_map = {entry[3]: False for entry in entries}
+
+    # Mapping from heading text fragments to bookmark names
+    _HEADING_BOOKMARK_MAP = {
+        'Resumen Ejecutivo':          'sec_resumen',
+        'Introducción':               'sec_intro',
+        'Propósito y Alcance':        'sec_alcance',
+        'Objetivos SMART':            'sec_smart',
+        'Metodología':                'sec_metodologia',
+        'Técnicas y Herramientas':    'sec_tecnicas',
+        'Fases del Proceso':          'sec_fases',
+        'Criterios de Auditoría':     'sec_criterios',
+        'Equipo Auditor':             'sec_roles',
+        'Hallazgos de Auditoría':     'sec_hallazgos',
+        'Análisis de Brechas ISO':    'sec_brechas',
+        'ISO/IEC 25040':              'sec_iso25040',
+        'ISO/IEC 12207':              'sec_iso12207',
+        'ISO/IEC 14764':              'sec_iso14764',
+        'Cobertura de Pruebas':       'sec_tests',
+        'Conclusiones':               'sec_conclusiones',
+        'Recomendaciones':            'sec_recomendaciones',
+        'Acciones Inmediatas':        'sec_rec_critico',
+        'Acciones Urgentes':          'sec_rec_alto',
+        'Acciones Planificadas':      'sec_rec_medio',
+        'Plan de Seguimiento':        'sec_seguimiento',
+        'Anexos':                     'sec_anexos',
+        'Anexo A':                    'sec_anexo_a',
+        'Estructura del Proyecto':    'sec_anexo_a',
+        'Archivos sin Cobertura':     'sec_anexo_b',
+        'Herramienta Utilizada':      'sec_anexo_c',
+    }
 
     def _add_heading(self, text: str, level: int = 1, color=None):
         from docx.shared import RGBColor, Pt
@@ -167,6 +264,18 @@ class DocxReportExporter:
         if color:
             for run in p.runs:
                 run.font.color.rgb = RGBColor(*color)
+
+        # Add bookmark if this heading matches a TOC entry
+        bookmark_name = None
+        for fragment, bm in self._HEADING_BOOKMARK_MAP.items():
+            if fragment in text:
+                bookmark_name = bm
+                break
+
+        if bookmark_name and hasattr(self, '_bm_counter'):
+            self._add_bookmark(p, self._bm_counter, bookmark_name)
+            self._bm_counter += 1
+
         return p
 
     def _add_paragraph(self, text: str, bold: bool = False, italic: bool = False,
