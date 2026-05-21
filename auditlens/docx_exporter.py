@@ -84,6 +84,53 @@ class DocxReportExporter:
         section.left_margin = Cm(3)
         section.right_margin = Cm(2.5)
 
+    def add_table_of_contents(self):
+        """
+        Insert an automatic Table of Contents (Tabla de Contenidos).
+        Word generates the page numbers when the user opens and updates the TOC
+        (right-click → Update Field, or Ctrl+A then F9).
+        """
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        from docx.shared import Pt
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+        self._add_heading('Tabla de Contenidos', level=1)
+
+        # Word TOC field instruction
+        paragraph = self.doc.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        run = paragraph.add_run()
+        fldChar_begin = OxmlElement('w:fldChar')
+        fldChar_begin.set(qn('w:fldCharType'), 'begin')
+        run._r.append(fldChar_begin)
+
+        instrText = OxmlElement('w:instrText')
+        instrText.set(qn('xml:space'), 'preserve')
+        instrText.text = (
+            'TOC \\o "1-3" \\h \\z \\u'
+        )  # levels 1-3, hyperlinked, hide tab leader in web view, use applied styles
+        run._r.append(instrText)
+
+        fldChar_sep = OxmlElement('w:fldChar')
+        fldChar_sep.set(qn('w:fldCharType'), 'separate')
+        run._r.append(fldChar_sep)
+
+        # Placeholder text shown before first update
+        placeholder_para = self.doc.add_paragraph()
+        placeholder_run = placeholder_para.add_run(
+            'Haga clic derecho aquí → "Actualizar campo" para generar el índice con números de página.'
+        )
+        placeholder_run.font.size = Pt(10)
+        placeholder_run.font.italic = True
+        placeholder_run.font.color.rgb = __import__('docx').shared.RGBColor(128, 128, 128)
+
+        fldChar_end = OxmlElement('w:fldChar')
+        fldChar_end.set(qn('w:fldCharType'), 'end')
+        run._r.append(fldChar_end)
+
+        self.doc.add_page_break()
+
     def _add_heading(self, text: str, level: int = 1, color=None):
         from docx.shared import RGBColor, Pt
         p = self.doc.add_heading(text, level=level)
@@ -686,21 +733,38 @@ def generate_docx_report(
     plan: Optional[Dict] = None,
 ) -> str:
     """
-    Generate a complete audit report as Word document.
+    Generate the complete unified audit document (plan + scan results).
+
+    Structure:
+      Portada
+      Tabla de Contenidos  ← NEW: auto-generated TOC
+      1. Resumen Ejecutivo
+      2. Introducción (alcance, objetivos SMART)  ← from plan
+      3. Metodología (técnicas, fases, criterios, roles)  ← from plan
+      4. Hallazgos (Condición/Criterio/Causa/Efecto)  ← from scan
+      5. Análisis de Brechas ISO 25040/12207/14764
+      6. Análisis de Cobertura de Pruebas
+      7. Conclusiones
+      8. Recomendaciones priorizadas
+      9. Plan de Seguimiento con KPIs
+      10. Anexos
+
     Returns the path to the generated file.
     """
     from .iso_mapper import compute_iso_gap_analysis, enrich_finding_with_iso
     from .test_analyzer import analyze_test_coverage
     from .audit_planner import generate_audit_plan, generate_kpis
 
-    # Enrich findings with ISO data
+    print('\033[94m[AuditLens]\033[0m Preparando informe Word unificado...')
+
+    # Enrich findings with ISO Condición/Criterio/Causa/Efecto
     enriched_findings = [enrich_finding_with_iso(f) for f in findings]
 
-    # Compute analyses
+    # Compute ISO gap analysis and test coverage
     gap_analysis = compute_iso_gap_analysis(findings)
     test_analysis = analyze_test_coverage(scan_path)
 
-    # Generate plan if not provided
+    # Generate full audit plan (includes project structure, SMART objectives, etc.)
     if plan is None:
         plan = generate_audit_plan(
             scan_path, findings, empresa, sistema, trimestre, auditor
@@ -708,21 +772,45 @@ def generate_docx_report(
 
     kpis = generate_kpis(findings, test_analysis)
     project_info = plan.get('resumen_proyecto', {})
-
     fecha = datetime.now().strftime('%d/%m/%Y')
 
     exporter = DocxReportExporter()
-    exporter.add_cover_page(empresa, sistema, auditor, fecha, trimestre)
-    exporter.add_executive_summary(findings, gap_analysis, test_analysis, empresa, sistema)
-    exporter.add_introduction(plan)
-    exporter.add_methodology(plan)
-    exporter.add_findings(enriched_findings)
-    exporter.add_iso_gap_analysis(gap_analysis)
-    exporter.add_test_coverage(test_analysis)
-    exporter.add_conclusions(findings, gap_analysis, sistema, empresa)
-    exporter.add_recommendations(findings)
-    exporter.add_followup_plan(kpis)
-    exporter.add_annexes(project_info, test_analysis)
-    exporter.save(output_path)
 
+    # ── 1. Portada ────────────────────────────────────────────────────────────
+    exporter.add_cover_page(empresa, sistema, auditor, fecha, trimestre)
+
+    # ── 2. Tabla de Contenidos ────────────────────────────────────────────────
+    exporter.add_table_of_contents()
+
+    # ── 3. Resumen Ejecutivo ──────────────────────────────────────────────────
+    exporter.add_executive_summary(findings, gap_analysis, test_analysis, empresa, sistema)
+
+    # ── 4. Introducción (alcance + objetivos SMART) ───────────────────────────
+    exporter.add_introduction(plan)
+
+    # ── 5. Metodología ────────────────────────────────────────────────────────
+    exporter.add_methodology(plan)
+
+    # ── 6. Hallazgos ─────────────────────────────────────────────────────────
+    exporter.add_findings(enriched_findings)
+
+    # ── 7. Análisis de Brechas ISO ────────────────────────────────────────────
+    exporter.add_iso_gap_analysis(gap_analysis)
+
+    # ── 8. Análisis de Cobertura de Pruebas ──────────────────────────────────
+    exporter.add_test_coverage(test_analysis)
+
+    # ── 9. Conclusiones ───────────────────────────────────────────────────────
+    exporter.add_conclusions(findings, gap_analysis, sistema, empresa)
+
+    # ── 10. Recomendaciones ───────────────────────────────────────────────────
+    exporter.add_recommendations(findings)
+
+    # ── 11. Plan de Seguimiento ───────────────────────────────────────────────
+    exporter.add_followup_plan(kpis)
+
+    # ── 12. Anexos ────────────────────────────────────────────────────────────
+    exporter.add_annexes(project_info, test_analysis)
+
+    exporter.save(output_path)
     return output_path

@@ -189,33 +189,28 @@ def main():
 
 
 def _run_plan_command(args):
-    """Execute the 'plan' subcommand."""
-    from .analyzer import run_static_analysis
+    """
+    Execute 'auditlens plan' — generates a single unified Word document
+    containing both the audit planning sections AND the scan results.
+    """
+    import os
     from .audit_planner import generate_audit_plan
     from .docx_exporter import generate_docx_report
-
-    print(f'\033[94m[AuditLens Plan]\033[0m Iniciando planificación de auditoría...\n')
-
-    # Run a quick scan first to get findings for context
-    print('\033[94m[AuditLens Plan]\033[0m Ejecutando análisis previo del proyecto...')
-    findings_acc: list = []
-
-    run_static_analysis(
-        args.path,
-        run_sca=not args.no_sca,
-        record_history=False,
-        min_severity='LOW',
-    )
-
-    # Re-run collecting findings
     from .rules_engine import RulesEngine
     from .taint_analyzer import TaintAnalyzer
     from .analyzer import analyze_file, _SUPPORTED_EXTENSIONS
-    import os
 
+    print(f'\033[94m[AuditLens]\033[0m Generando documento de auditoría unificado...\n')
+
+    # ── Collect findings ──────────────────────────────────────────────────────
+    print('\033[94m[AuditLens]\033[0m Escaneando código fuente...')
+    findings_acc: list = []
     rules_engine = RulesEngine()
     taint_analyzer = TaintAnalyzer()
-    exclude_dirs = {'venv', '.venv', 'env', '.env', 'node_modules', '.git', '__pycache__', 'build', 'dist'}
+    exclude_dirs = {
+        'venv', '.venv', 'env', '.env', 'node_modules', '.git',
+        '__pycache__', 'build', 'dist', 'site-packages',
+    }
 
     for dirpath, dirnames, files in os.walk(args.path):
         dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
@@ -229,45 +224,49 @@ def _run_plan_command(args):
                     all_findings_accumulator=findings_acc,
                 )
 
-    # Generate plan
-    plan = generate_audit_plan(
-        root_path=args.path,
-        findings=findings_acc,
-        empresa=args.empresa,
-        sistema=args.sistema,
-        trimestre=args.trimestre,
-        auditor=args.auditor,
-    )
-
+    # ── Generate unified document ─────────────────────────────────────────────
     output = args.output
-    if output.endswith('.docx') or not output.endswith('.pdf'):
-        if not output.endswith('.docx'):
-            output = output + '.docx'
-        try:
-            generate_docx_report(
-                findings=findings_acc,
-                scan_path=args.path,
-                output_path=output,
-                empresa=args.empresa,
-                sistema=args.sistema,
-                auditor=args.auditor,
-                trimestre=args.trimestre,
-                plan=plan,
-            )
-        except ImportError as e:
-            print(f'\033[91m[ERROR]\033[0m {e}')
-            print('Instala con: pip install python-docx --break-system-packages')
-            sys.exit(1)
-    else:
-        print(f'\033[93m[AuditLens Plan]\033[0m Formato PDF para plan no soportado aún. Usa .docx')
+    if not output.endswith('.docx'):
+        output = output + '.docx'
 
-    # Print summary
-    print(f'\n\033[92m[AuditLens Plan]\033[0m Planificación completada.')
-    print(f'   Proyecto: \033[1m{args.path}\033[0m')
-    print(f'   Sistema: {args.sistema}')
-    print(f'   Empresa: {args.empresa}')
-    print(f'   Hallazgos analizados: {len(findings_acc)}')
-    print(f'   Módulos detectados: {len(plan.get("resumen_proyecto", {}).get("modulos", []))}')
+    try:
+        generate_docx_report(
+            findings=findings_acc,
+            scan_path=args.path,
+            output_path=output,
+            empresa=args.empresa,
+            sistema=args.sistema,
+            auditor=args.auditor,
+            trimestre=args.trimestre,
+        )
+    except ImportError as e:
+        print(f'\033[91m[ERROR]\033[0m {e}')
+        print('Instala con: pip install python-docx --break-system-packages')
+        sys.exit(1)
+
+    counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
+    for f in findings_acc:
+        sev = f.get('severity', 'LOW').upper()
+        if sev in counts:
+            counts[sev] += 1
+
+    print(f'\n\033[92m[AuditLens]\033[0m Documento de auditoría generado exitosamente.')
+    print(f'   Archivo:   \033[1m{os.path.abspath(output)}\033[0m')
+    print(f'   Empresa:   {args.empresa}')
+    print(f'   Sistema:   {args.sistema}')
+    print(f'   Hallazgos: {len(findings_acc)} total '
+          f'(CRÍTICO:{counts["CRITICAL"]} ALTO:{counts["HIGH"]} '
+          f'MEDIO:{counts["MEDIUM"]} BAJO:{counts["LOW"]})')
+    print(f'\n   El documento incluye:')
+    print(f'   ✓ Tabla de Contenidos con índice automático')
+    print(f'   ✓ Planificación (alcance, objetivos SMART, metodología, roles)')
+    print(f'   ✓ Hallazgos con Condición/Criterio/Causa/Efecto')
+    print(f'   ✓ Análisis de brechas ISO 25040 / ISO 12207 / ISO 14764')
+    print(f'   ✓ Cobertura de pruebas y brechas detectadas')
+    print(f'   ✓ Conclusiones y recomendaciones priorizadas')
+    print(f'   ✓ Plan de seguimiento con KPIs')
+    print(f'   ✓ Anexos')
+    print(f'\n   \033[90mAbra el documento en Word y presione Ctrl+A → F9 para actualizar el índice.\033[0m')
 
 
 if __name__ == '__main__':
