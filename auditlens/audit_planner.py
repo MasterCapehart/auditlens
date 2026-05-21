@@ -113,64 +113,103 @@ def generate_smart_objectives(
     empresa: str,
     sistema: str,
     trimestre: str,
+    fecha_entrega: str = '08/06/2026',
 ) -> List[Dict]:
     """Generate SMART objectives based on project analysis."""
     objectives = []
-    now = datetime.now()
-    fecha_fin = (now + timedelta(weeks=12)).strftime('%d/%m/%Y')
 
-    # Always include security objective
+    # Use delivery date as deadline — NOT 12 weeks from now
+    fecha_fin = fecha_entrega
+
     critical_count = sum(1 for f in findings_preview if f.get('severity') == 'CRITICAL')
     high_count = sum(1 for f in findings_preview if f.get('severity') == 'HIGH')
+    total_files = project_info.get('total_archivos', 0)
+    modules = project_info.get('modulos', [])
+    top_modules = ', '.join(modules[:3]) if modules else 'módulos principales'
 
     objectives.append({
         'numero': 1,
         'titulo': 'Evaluación de Seguridad del Código',
         'descripcion': (
-            f"Evaluar la conformidad del sistema {sistema} de la empresa {empresa} "
-            f"con los requisitos de seguridad definidos en ISO 25040, identificando y "
-            f"documentando todas las vulnerabilidades críticas y de alta severidad "
-            f"durante el {trimestre}."
+            f"Auditar el sistema {sistema} de la empresa {empresa} durante el {trimestre}, "
+            f"evaluando la conformidad con los requisitos de seguridad de ISO 25040, "
+            f"con foco en los módulos {top_modules}, para identificar y documentar "
+            f"todas las vulnerabilidades críticas y de alta severidad."
         ),
-        'especifico': f"Analizar el 100% del código fuente del sistema {sistema}",
-        'medible': f"Reducir en un 80% los {critical_count + high_count} hallazgos CRÍTICOS/ALTOS identificados",
-        'alcanzable': "Mediante análisis estático automatizado y revisión manual de código",
-        'relevante': "Cumplimiento de ISO 25040 Seguridad Funcional y normativas aplicables",
-        'plazo': f"Completar antes del {fecha_fin}",
-        'iso': ['ISO 25040 — Seguridad Funcional', 'ISO 12207 — Verificación y Validación'],
+        'especifico': (
+            f"Analizar el 100% del código fuente de {sistema} ({total_files} archivos), "
+            f"con énfasis en los módulos {top_modules} que concentran mayor riesgo"
+        ),
+        'medible': (
+            f"Documentar los {critical_count} hallazgos CRÍTICOS y {high_count} ALTOS detectados; "
+            f"proponer remediación para el 100% de los hallazgos CRÍTICOS"
+        ),
+        'alcanzable': (
+            "Mediante análisis estático automatizado con AuditLens y SonarQube, "
+            "revisión manual de código y entrevistas estructuradas al equipo de desarrollo"
+        ),
+        'relevante': (
+            "La seguridad del sistema impacta directamente en la confidencialidad de los datos "
+            "de usuarios y en el cumplimiento de ISO 25040 Seguridad Funcional"
+        ),
+        'plazo': f"Completar el análisis y entregar el informe antes del {fecha_fin}",
+        'iso': ['ISO 25040 — Seguridad Funcional (Sección 4.2.5)', 'ISO 12207 — Verificación y Validación'],
     })
 
-    # Test coverage objective
-    if project_info.get('total_archivos', 0) > 5:
+    if total_files > 5:
+        test_coverage = project_info.get('ratio_cobertura', 0)
         objectives.append({
             'numero': 2,
-            'titulo': 'Mejora de Cobertura de Pruebas',
+            'titulo': 'Evaluación de Cobertura de Pruebas y Verificación',
             'descripcion': (
-                f"Evaluar y mejorar la cobertura de pruebas del software {sistema}, "
-                f"verificando la conformidad con el proceso de Verificación y Validación "
-                f"de ISO 12207."
+                f"Evaluar la cobertura de pruebas del software {sistema} y verificar "
+                f"la conformidad con el proceso de Verificación y Validación de ISO 12207, "
+                f"identificando los módulos sin cobertura de pruebas."
             ),
-            'especifico': f"Auditar los {project_info['total_archivos']} archivos fuente del sistema",
-            'medible': "Alcanzar al menos 70% de ratio de cobertura de pruebas",
-            'alcanzable': "Implementando pruebas unitarias para los módulos críticos identificados",
-            'relevante': "Reducción de defectos en producción y cumplimiento de ISO 12207",
+            'especifico': (
+                f"Auditar los {total_files} archivos fuente del sistema {sistema} "
+                f"en busca de archivos sin pruebas asociadas y brechas en la estrategia de testing"
+            ),
+            'medible': (
+                "Documentar el ratio de cobertura actual y proponer un plan para "
+                "alcanzar al menos el 70% de cobertura de pruebas en los módulos críticos"
+            ),
+            'alcanzable': (
+                "Mediante análisis automático de la estructura del repositorio "
+                "y verificación de la existencia de suites de prueba por módulo"
+            ),
+            'relevante': (
+                "La falta de pruebas es la causa raíz de muchos defectos en producción "
+                "y es requerida explícitamente por ISO 12207 en su proceso de V&V"
+            ),
             'plazo': f"Completar antes del {fecha_fin}",
             'iso': ['ISO 12207 — Verificación y Validación (Sección 6.4)', 'ISO 25040 — Fiabilidad'],
         })
 
-    # Maintenance objective
     objectives.append({
         'numero': 3,
-        'titulo': 'Evaluación de Mantenibilidad',
+        'titulo': 'Evaluación de Mantenibilidad y Procesos de Mantenimiento',
         'descripcion': (
             f"Evaluar las prácticas de mantenimiento del software {sistema} conforme a "
             f"ISO 14764, identificando brechas en los procesos de mantenimiento correctivo, "
-            f"adaptativo y preventivo."
+            f"adaptativo y preventivo, con foco en la gestión de dependencias vulnerables."
         ),
-        'especifico': f"Auditar los procesos de mantenimiento y gestión de cambios del sistema",
-        'medible': "Documentar el 100% de los hallazgos de mantenimiento por categoría ISO 14764",
-        'alcanzable': "Mediante análisis automatizado y revisión de historial de cambios",
-        'relevante': "Garantizar la sostenibilidad y mantenibilidad a largo plazo del sistema",
+        'especifico': (
+            f"Auditar los procesos de mantenimiento, gestión de cambios y dependencias de "
+            f"terceros del sistema {sistema}"
+        ),
+        'medible': (
+            "Clasificar el 100% de los hallazgos según tipo de mantenimiento ISO 14764 "
+            "(correctivo/adaptativo/preventivo/perfectivo) y calcular puntuación de conformidad"
+        ),
+        'alcanzable': (
+            "Mediante análisis automatizado de dependencias con SCA y "
+            "revisión documental del historial de cambios del repositorio"
+        ),
+        'relevante': (
+            "Garantiza la sostenibilidad del sistema a largo plazo y "
+            "el cumplimiento de ISO 14764 en los procesos de mantenimiento"
+        ),
         'plazo': f"Completar antes del {fecha_fin}",
         'iso': ['ISO 14764 — Mantenimiento del Software', 'ISO 12207 — Gestión de Configuración'],
     })
@@ -251,108 +290,162 @@ def generate_audit_criteria(gap_analysis: Dict) -> List[Dict]:
 
 
 def generate_methodology() -> Dict:
-    """Generate audit methodology section."""
+    """Generate audit methodology section with industry-standard tools."""
     return {
         'enfoque': 'Metodología Híbrida de Auditoría de Software',
         'descripcion': (
-            'Se empleará una metodología híbrida que combina análisis estático automatizado '
-            'con AuditLens, revisión documental y entrevistas estructuradas, permitiendo '
-            'una evaluación integral del software desde perspectivas técnicas y de proceso.'
+            'Se empleará una metodología híbrida que combina análisis estático automatizado, '
+            'revisión documental y entrevistas estructuradas con el equipo de desarrollo, '
+            'permitiendo una evaluación integral del software desde perspectivas técnicas y de proceso.'
         ),
         'tecnicas': [
             {
                 'nombre': 'Análisis Estático de Código (SAST)',
-                'herramienta': 'AuditLens v0.3.0',
-                'descripcion': 'Análisis automatizado del código fuente para detectar vulnerabilidades de seguridad, patrones inseguros y deuda técnica.',
-                'cobertura': 'Código fuente Python, JavaScript, TypeScript, Swift, Go, Java, Kotlin, Ruby',
-                'iso': 'ISO 12207 — Verificación Estática, ISO 25040 — Seguridad',
+                'herramienta': 'AuditLens v0.6.0 + SonarQube Community + Bandit (Python)',
+                'descripcion': (
+                    'Análisis automatizado del código fuente para detectar vulnerabilidades de seguridad, '
+                    'patrones inseguros y deuda técnica. AuditLens proporciona análisis de taint y reglas '
+                    'personalizadas; SonarQube evalúa calidad general del código; Bandit detecta '
+                    'vulnerabilidades específicas de Python.'
+                ),
+                'cobertura': 'Código fuente Python (backend Django), JavaScript/JSX/TypeScript (frontend React)',
+                'iso': 'ISO 12207 — Verificación Estática; ISO 25040 — Seguridad Funcional',
             },
             {
                 'nombre': 'Análisis de Composición de Software (SCA)',
-                'herramienta': 'AuditLens + OSV API',
-                'descripcion': 'Verificación de dependencias de terceros contra la base de datos de vulnerabilidades conocidas (CVE/OSV).',
-                'cobertura': 'requirements.txt, package.json, poetry.lock, Pipfile.lock, yarn.lock',
-                'iso': 'ISO 14764 — Mantenimiento Preventivo, ISO 25040 — Fiabilidad',
+                'herramienta': 'AuditLens SCA Engine + OSV API + pip-audit + npm audit',
+                'descripcion': (
+                    'Verificación de dependencias de terceros contra bases de datos de vulnerabilidades '
+                    'conocidas (CVE/OSV/NVD). pip-audit para dependencias Python; npm audit para '
+                    'dependencias JavaScript.'
+                ),
+                'cobertura': 'requirements.txt, package.json, poetry.lock, Pipfile.lock',
+                'iso': 'ISO 14764 — Mantenimiento Preventivo; ISO 25040 — Fiabilidad',
+            },
+            {
+                'nombre': 'Pruebas de Seguridad Dinámicas (DAST)',
+                'herramienta': 'OWASP ZAP (Zed Attack Proxy)',
+                'descripcion': (
+                    'Pruebas de penetración automatizadas sobre la aplicación en ejecución para detectar '
+                    'vulnerabilidades en tiempo de ejecución: XSS, CSRF, inyección SQL, autenticación débil. '
+                    'Se ejecuta en el ambiente de desarrollo/staging del sistema EcoAlerta.'
+                ),
+                'cobertura': 'API REST del backend Django, endpoints de autenticación, formularios del frontend',
+                'iso': 'ISO 25040 — Seguridad Funcional; ISO 12207 — Pruebas de Sistema',
             },
             {
                 'nombre': 'Análisis de Flujo de Datos (Taint Analysis)',
-                'herramienta': 'AuditLens — Motor de Taint',
-                'descripcion': 'Rastreo de datos sensibles desde fuentes (entrada de usuario) hasta sumideros peligrosos (base de datos, comandos shell).',
-                'cobertura': 'Análisis intra e inter-procedural en Python',
-                'iso': 'ISO 25040 — Seguridad/Integridad, ISO 12207 — Codificación',
+                'herramienta': 'AuditLens — Motor de Taint Inter-Procedural',
+                'descripcion': (
+                    'Rastreo de datos sensibles desde fuentes (request.args, request.form, input()) '
+                    'hasta sumideros peligrosos (db.execute, os.system, subprocess). '
+                    'Detecta flujos de datos peligrosos que pueden derivar en inyección SQL o command injection.'
+                ),
+                'cobertura': 'Análisis intra e inter-procedural en Python (backend Django)',
+                'iso': 'ISO 25040 — Seguridad/Integridad; ISO 12207 — Codificación',
             },
             {
                 'nombre': 'Análisis de Cobertura de Pruebas',
-                'herramienta': 'AuditLens — Test Coverage Analyzer',
-                'descripcion': 'Detección automática de archivos de prueba y estimación del ratio de cobertura.',
-                'cobertura': 'Todos los lenguajes soportados',
-                'iso': 'ISO 12207 — Verificación y Validación, ISO 25040 — Fiabilidad',
+                'herramienta': 'AuditLens Test Coverage Analyzer + pytest-cov',
+                'descripcion': (
+                    'Detección automática de archivos de prueba y estimación del ratio de cobertura. '
+                    'pytest-cov mide la cobertura real de líneas ejecutadas durante las pruebas.'
+                ),
+                'cobertura': 'Todos los módulos Python y JavaScript del proyecto',
+                'iso': 'ISO 12207 — Verificación y Validación; ISO 25040 — Fiabilidad',
             },
             {
-                'nombre': 'Análisis de Brechas ISO',
-                'herramienta': 'AuditLens — ISO Gap Analyzer',
-                'descripcion': 'Evaluación automatizada del nivel de conformidad del software con ISO 25040, ISO 12207 e ISO 14764.',
-                'cobertura': 'Todo el proyecto',
-                'iso': 'ISO 25040, ISO 12207, ISO 14764',
+                'nombre': 'Entrevistas Estructuradas al Equipo de Desarrollo',
+                'herramienta': 'Manual — Auditor de Procesos',
+                'descripcion': (
+                    'Entrevistas con el equipo que desarrolló EcoAlerta para obtener información '
+                    'sobre el proceso de desarrollo, prácticas de seguridad, gestión de cambios '
+                    'y conocimiento de las vulnerabilidades identificadas.'
+                ),
+                'cobertura': 'Proceso de desarrollo, gestión de cambios, prácticas de seguridad',
+                'iso': 'ISO 12207 — Aseguramiento de la Calidad; ISO 14764 — Mantenimiento',
             },
             {
                 'nombre': 'Revisión Documental',
-                'herramienta': 'Manual (auditor)',
-                'descripcion': 'Revisión de documentación del proyecto: README, changelog, comentarios de código, configuraciones.',
-                'cobertura': 'Documentación disponible en el repositorio',
-                'iso': 'ISO 12207 — Documentación, ISO 14764 — Registros de mantenimiento',
+                'herramienta': 'Manual — Auditor de Procesos',
+                'descripcion': (
+                    'Revisión de la documentación disponible del proyecto: README, comentarios de código, '
+                    'configuraciones de entorno, archivos de prueba, historial de commits.'
+                ),
+                'cobertura': 'Documentación del repositorio EcoAlerta',
+                'iso': 'ISO 12207 — Documentación; ISO 14764 — Registros de mantenimiento',
             },
         ],
         'herramientas': [
-            {'nombre': 'AuditLens v0.3.0', 'tipo': 'SAST/SCA/Taint', 'licencia': 'MIT'},
-            {'nombre': 'OSV API (Google)', 'tipo': 'Base de datos de vulnerabilidades', 'licencia': 'Pública'},
+            {'nombre': 'AuditLens v0.6.0', 'tipo': 'SAST/SCA/Taint/ISO Gap Analysis', 'licencia': 'MIT Open Source'},
+            {'nombre': 'SonarQube Community Edition', 'tipo': 'Análisis estático de calidad de código', 'licencia': 'LGPL v3 (gratuita)'},
+            {'nombre': 'Bandit', 'tipo': 'SAST especializado en Python', 'licencia': 'Apache 2.0 (gratuita)'},
+            {'nombre': 'OWASP ZAP', 'tipo': 'DAST / Pruebas de penetración web', 'licencia': 'Apache 2.0 (gratuita)'},
+            {'nombre': 'pip-audit', 'tipo': 'SCA para dependencias Python', 'licencia': 'Apache 2.0 (gratuita)'},
+            {'nombre': 'npm audit', 'tipo': 'SCA para dependencias JavaScript', 'licencia': 'Incluida en Node.js'},
+            {'nombre': 'OSV API (Google)', 'tipo': 'Base de datos de vulnerabilidades CVE', 'licencia': 'Pública'},
+            {'nombre': 'Jira Software', 'tipo': 'Gestión de hallazgos y seguimiento de acciones correctivas', 'licencia': 'Comercial (plan gratuito disponible)'},
+        ],
+        'guion_entrevista': [
+            {'numero': 1, 'pregunta': '¿Existe un proceso formal de revisión de código (code review) antes de hacer merge al repositorio principal?', 'objetivo': 'Evaluar conformidad con ISO 12207 — Verificación'},
+            {'numero': 2, 'pregunta': '¿Cómo se gestionan los secretos y credenciales (API keys, contraseñas) en el proyecto?', 'objetivo': 'Detectar riesgo de exposición de secretos (SEC-01)'},
+            {'numero': 3, 'pregunta': '¿Se realizan pruebas de seguridad antes de desplegar una nueva versión? ¿Con qué herramientas?', 'objetivo': 'Evaluar madurez del proceso de V&V — ISO 12207'},
+            {'numero': 4, 'pregunta': '¿Existe documentación actualizada de la arquitectura y los módulos del sistema?', 'objetivo': 'Evaluar conformidad con ISO 12207 — Documentación'},
+            {'numero': 5, 'pregunta': '¿Cómo se gestionan las actualizaciones de dependencias de terceros? ¿Con qué frecuencia?', 'objetivo': 'Evaluar conformidad con ISO 14764 — Mantenimiento Preventivo'},
+            {'numero': 6, 'pregunta': '¿Se han reportado incidentes de seguridad o errores críticos en producción? ¿Cómo se documentaron?', 'objetivo': 'Evaluar proceso de mantenimiento correctivo — ISO 14764'},
+            {'numero': 7, 'pregunta': '¿Existe un pipeline de CI/CD? ¿Incluye análisis automático de seguridad?', 'objetivo': 'Evaluar madurez del proceso de integración — ISO 12207'},
+            {'numero': 8, 'pregunta': '¿Los desarrolladores han recibido capacitación en seguridad de aplicaciones web (OWASP Top 10)?', 'objetivo': 'Identificar causa raíz de vulnerabilidades detectadas'},
         ],
         'fases': [
-            {'fase': 1, 'nombre': 'Planificación', 'duracion': '1 semana', 'actividades': ['Definición de alcance', 'Preparación de herramientas', 'Reunión de inicio']},
-            {'fase': 2, 'nombre': 'Ejecución', 'duracion': '2 semanas', 'actividades': ['Análisis estático', 'SCA', 'Taint analysis', 'Análisis de cobertura']},
-            {'fase': 3, 'nombre': 'Análisis', 'duracion': '1 semana', 'actividades': ['Análisis de brechas ISO', 'Formulación de hallazgos', 'Análisis de causa raíz']},
-            {'fase': 4, 'nombre': 'Reporte', 'duracion': '1 semana', 'actividades': ['Redacción del informe', 'Recomendaciones', 'Plan de seguimiento']},
-            {'fase': 5, 'nombre': 'Seguimiento', 'duracion': 'Trimestral', 'actividades': ['Revisión de KPIs', 'Verificación de correcciones', 'Actualización de baseline']},
+            {'fase': 1, 'nombre': 'Planificación', 'duracion': '3 días', 'actividades': ['Definición de alcance', 'Configuración de AuditLens y SonarQube', 'Reunión de inicio con el equipo auditado']},
+            {'fase': 2, 'nombre': 'Ejecución', 'duracion': '5 días', 'actividades': ['Análisis estático con AuditLens + Bandit', 'SCA con pip-audit + npm audit', 'Pruebas DAST con OWASP ZAP', 'Entrevistas estructuradas', 'Revisión documental']},
+            {'fase': 3, 'nombre': 'Análisis', 'duracion': '3 días', 'actividades': ['Análisis de brechas ISO', 'Análisis de causa raíz (5 Porqués)', 'Tablas de correlación', 'Formulación de hallazgos']},
+            {'fase': 4, 'nombre': 'Informe', 'duracion': '3 días', 'actividades': ['Redacción del informe con AuditLens plan', 'Revisión y aprobación del equipo auditor', 'Entrega al cliente']},
+            {'fase': 5, 'nombre': 'Seguimiento', 'duracion': 'Mensual', 'actividades': ['Revisión de KPIs en Jira', 'Re-scan con AuditLens --diff-baseline', 'Actualización del baseline']},
         ],
     }
 
 
-def generate_roles() -> List[Dict]:
-    """Generate audit team roles template."""
+def generate_roles(
+    auditor_lider: str = 'Daniel Flores',
+    auditor_tecnico: str = 'Marcelo Acevedo',
+    auditor_procesos: str = 'Claudia Infante',
+) -> List[Dict]:
+    """Generate audit team roles with real names."""
     return [
         {
             'rol': 'Auditor Líder',
-            'nombre': '[Por asignar]',
+            'nombre': auditor_lider,
             'responsabilidades': [
-                'Planificación general de la auditoría',
-                'Supervisión del equipo auditor',
-                'Redacción del informe final',
-                'Presentación de resultados al cliente',
-                'Gestión del plan de seguimiento',
+                'Planificación general y coordinación de la auditoría',
+                'Supervisión del equipo auditor y asignación de tareas',
+                'Redacción y revisión del informe final de auditoría',
+                'Presentación de resultados al equipo de EcoAlerta',
+                'Gestión del plan de seguimiento en Jira',
             ],
             'fase': 'Todas las fases',
         },
         {
             'rol': 'Auditor Técnico de Software',
-            'nombre': '[Por asignar]',
+            'nombre': auditor_tecnico,
             'responsabilidades': [
-                'Ejecución del análisis estático con AuditLens',
-                'Interpretación de hallazgos técnicos',
-                'Validación de falsos positivos',
-                'Propuesta de recomendaciones técnicas',
-                'Documentación de evidencia técnica',
+                'Ejecución del análisis estático con AuditLens, SonarQube y Bandit',
+                'Ejecución de pruebas de seguridad dinámicas con OWASP ZAP',
+                'Interpretación y clasificación de hallazgos técnicos',
+                'Validación de falsos positivos en los resultados del análisis',
+                'Documentación de evidencia técnica con hash SHA-256',
             ],
             'fase': 'Ejecución y Análisis',
         },
         {
             'rol': 'Auditor de Procesos',
-            'nombre': '[Por asignar]',
+            'nombre': auditor_procesos,
             'responsabilidades': [
-                'Entrevistas al equipo de desarrollo',
-                'Revisión documental (README, changelog, políticas)',
+                'Conducción de entrevistas estructuradas al equipo de EcoAlerta',
+                'Revisión documental (README, historial de commits, configuraciones)',
                 'Evaluación de conformidad con ISO 12207 e ISO 14764',
-                'Documentación de hallazgos de proceso',
-                'Registro y custodia de evidencia documental',
+                'Documentación de hallazgos de proceso y gestión de evidencia',
+                'Registro y custodia de la cadena de evidencia',
             ],
             'fase': 'Ejecución y Análisis',
         },
@@ -443,10 +536,19 @@ def generate_audit_plan(
 
     print('\033[94m[AuditLens Plan]\033[0m Generando documento de planificación...')
 
-    objectives = generate_smart_objectives(project_info, findings, empresa, sistema, trimestre)
+    objectives = generate_smart_objectives(
+        project_info, findings, empresa, sistema, trimestre,
+        fecha_entrega='08/06/2026',
+    )
     criteria = generate_audit_criteria(gap_analysis)
     methodology = generate_methodology()
-    roles = generate_roles()
+    # Extract names from auditor string if multiple names provided
+    names = [n.strip() for n in auditor.replace(' y ', ',').replace(' Y ', ',').split(',')]
+    roles = generate_roles(
+        auditor_lider=names[0] if len(names) > 0 else auditor,
+        auditor_tecnico=names[1] if len(names) > 1 else '[Por asignar]',
+        auditor_procesos=names[2] if len(names) > 2 else '[Por asignar]',
+    )
     kpis = generate_kpis(findings, test_analysis)
 
     now = datetime.now()

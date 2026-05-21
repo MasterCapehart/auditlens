@@ -510,12 +510,36 @@ class DocxReportExporter:
             ]
             self._add_table(['Campo', 'Detalle'], rows)
 
+        # Tabla resumen de todas las herramientas
+        self._add_heading('Resumen de Herramientas de Auditoría', level=3)
+        tool_rows = [
+            [t['nombre'], t['tipo'], t['licencia']]
+            for t in met.get('herramientas', [])
+        ]
+        if tool_rows:
+            self._add_table(['Herramienta', 'Tipo / Propósito', 'Licencia'], tool_rows)
+
         self._add_heading('3.2 Fases del Proceso de Auditoría', level=2)
         fase_rows = [
             [str(f['fase']), f['nombre'], f['duracion'], ', '.join(f['actividades'])]
             for f in met.get('fases', [])
         ]
-        self._add_table(['Fase', 'Nombre', 'Duración', 'Actividades'], fase_rows)
+        self._add_table(['Fase', 'Nombre', 'Duración', 'Actividades principales'], fase_rows)
+
+        # Guion de entrevistas
+        guion = met.get('guion_entrevista', [])
+        if guion:
+            self._add_heading('Guión de Entrevistas Estructuradas', level=2)
+            self._add_paragraph(
+                'Las siguientes preguntas serán formuladas al equipo de desarrollo de EcoAlerta '
+                'por el Auditor de Procesos durante las entrevistas estructuradas. '
+                'Las respuestas serán documentadas como evidencia de proceso.'
+            )
+            guion_rows = [
+                [str(q['numero']), q['pregunta'], q['objetivo']]
+                for q in guion
+            ]
+            self._add_table(['#', 'Pregunta', 'Objetivo de la Pregunta'], guion_rows)
 
         self._add_heading('3.3 Criterios de Auditoría', level=2)
         for crit in plan.get('seccion_1_2_criterios', []):
@@ -524,17 +548,15 @@ class DocxReportExporter:
             for c in crit.get('caracteristicas', []):
                 p = self.doc.add_paragraph(style='List Bullet')
                 p.add_run(c)
-
-        self._add_heading('3.4 Equipo Auditor', level=2)
-        for rol in plan.get('seccion_1_4_roles', []):
-            self._add_heading(rol['rol'], level=3)
-            self._add_paragraph(f"Responsable: {rol['nombre']}", bold=True)
-            for resp in rol['responsabilidades']:
-                p = self.doc.add_paragraph(style='List Bullet')
-                p.add_run(resp)
+            # Metrics
+            if crit.get('metricas'):
+                self._add_paragraph('Métricas de evaluación:', bold=True)
+                for m in crit['metricas']:
+                    p = self.doc.add_paragraph(style='List Bullet')
+                    p.add_run(m)
 
     def add_findings(self, findings: List[dict]):
-        self._add_heading('4. Hallazgos de Auditoría', level=1)
+        self._add_heading('5. Hallazgos de Auditoría', level=1)
 
         if not findings:
             self._add_paragraph(
@@ -543,8 +565,18 @@ class DocxReportExporter:
             )
             return
 
+        # FIX: deduplicate findings by (rule_id, file, line)
+        seen_keys = set()
+        unique_findings = []
+        for f in findings:
+            key = (f.get('rule_id'), f.get('file'), f.get('line'))
+            if key not in seen_keys:
+                seen_keys.add(key)
+                unique_findings.append(f)
+        findings = unique_findings
+
         self._add_paragraph(
-            f"Se presentan a continuación los {len(findings)} hallazgos identificados, "
+            f"Se presentan a continuación los {len(findings)} hallazgos únicos identificados, "
             f"ordenados por severidad. Cada hallazgo incluye el formato "
             f"Condición / Criterio / Causa / Efecto conforme a las mejores prácticas de auditoría.",
         )
@@ -812,16 +844,38 @@ class DocxReportExporter:
         )
 
         self._add_heading('Mecanismo de Seguimiento', level=2)
+        self._add_paragraph(
+            'El seguimiento de las acciones correctivas se gestionará mediante las '
+            'siguientes herramientas y actividades:'
+        )
         steps = [
-            'Revisión mensual del estado de hallazgos críticos y altos',
-            'Ejecución periódica de AuditLens para medir progreso (auditlens scan --diff-baseline)',
-            'Actualización del baseline tras cada sprint de remediación',
-            'Revisión trimestral de KPIs con el equipo de desarrollo',
-            'Informe de cierre cuando todos los hallazgos críticos estén resueltos',
+            'Crear un proyecto en Jira (o Trello) con un ticket por cada hallazgo CRÍTICO y ALTO',
+            'Asignar cada ticket al responsable técnico con fecha límite según el plan de remediación',
+            'Revisión mensual del estado de tickets en Jira con el equipo de desarrollo de EcoAlerta',
+            'Ejecutar re-scan mensual: auditlens scan . --diff-baseline .auditlens-baseline.json',
+            'Actualizar el baseline en Jira cuando se cierren hallazgos verificados',
+            'Revisión trimestral de KPIs ISO con el Auditor Líder y stakeholders del proyecto',
+            'Emitir informe de cierre cuando todos los hallazgos CRÍTICOS estén resueltos',
         ]
         for step in steps:
             p = self.doc.add_paragraph(style='List Number')
             p.add_run(step)
+
+        # Jira/Trello template
+        self._add_heading('Plantilla de Ticket Jira para Hallazgo', level=3)
+        self._add_table(
+            ['Campo Jira', 'Valor'],
+            [
+                ['Tipo de issue', 'Bug / Security Vulnerability'],
+                ['Prioridad', 'Según severidad: Blocker=CRÍTICO, Critical=ALTO, Major=MEDIO'],
+                ['Título', '[RULE-ID] Descripción del hallazgo — archivo:línea'],
+                ['Descripción', 'Condición / Criterio / Causa / Efecto del hallazgo'],
+                ['Etiquetas', 'auditoria-2026, seguridad, ISO-25040'],
+                ['Responsable', 'Desarrollador asignado para la corrección'],
+                ['Fecha límite', 'Según plazo de la recomendación (48h/1 semana/1 mes)'],
+                ['Criterio de cierre', 'Re-scan con AuditLens muestra 0 ocurrencias de la regla en el archivo'],
+            ]
+        )
 
     def add_annexes(self, project_info: Dict, test_analysis: Dict):
         self._add_heading('10. Anexos', level=1)
@@ -1680,87 +1734,61 @@ class DocxReportExporter:
 
     def add_roles_responsibility_matrix(self, plan: Dict):
         """
-        Sección 1.4 mejorada — Tabla de Roles × Fases con responsabilidades cruzadas.
+        Sección 3.4 — Tabla de Roles × Fases con responsabilidades cruzadas y nombres reales.
         """
         self._add_heading('3.4 Matriz de Roles y Responsabilidades por Fase', level=2)
-        self._add_paragraph(
-            'La siguiente matriz define las responsabilidades de cada rol del equipo '
-            'auditor en cada fase del proceso de auditoría, asegurando la trazabilidad '
-            'y claridad en la asignación de tareas.'
+
+        # Extract real names from plan roles
+        roles_list = plan.get('seccion_1_4_roles', [])
+        lider = next((r['nombre'] for r in roles_list if 'Líder' in r['rol']), 'Daniel Flores')
+        tecnico = next((r['nombre'] for r in roles_list if 'Técnico' in r['rol']), 'Marcelo Acevedo')
+        procesos = next((r['nombre'] for r in roles_list if 'Procesos' in r['rol']), 'Claudia Infante')
+
+        # Show team members first
+        self._add_heading('Integrantes del Equipo Auditor', level=3)
+        self._add_table(
+            ['Rol', 'Nombre', 'Responsabilidad Principal'],
+            [
+                ['Auditor Líder', lider, 'Planificación, coordinación, informe final y seguimiento en Jira'],
+                ['Auditor Técnico de Software', tecnico, 'Ejecución de SAST/SCA/DAST con AuditLens, SonarQube y OWASP ZAP'],
+                ['Auditora de Procesos', procesos, 'Entrevistas estructuradas, revisión documental y cadena de custodia'],
+            ]
         )
 
-        # RACI matrix: R=Responsable, A=Aprobador, C=Consultado, I=Informado
-        self._add_heading('Matriz RACI (Responsable / Aprobador / Consultado / Informado)', level=3)
+        # RACI matrix with real names
+        self._add_heading(
+            f'Matriz RACI — R=Responsable, A=Aprobador, C=Consultado, I=Informado',
+            level=3
+        )
         self._add_table(
-            ['Actividad', 'Auditor Líder', 'Auditor Técnico', 'Auditor de Procesos'],
+            ['Actividad', f'{lider}\n(Líder)', f'{tecnico}\n(Técnico)', f'{procesos}\n(Procesos)'],
             [
-                # Planificación
-                ['Definición de alcance y objetivos',        'R/A', 'C', 'C'],
-                ['Selección de criterios ISO',               'A',   'R', 'C'],
-                ['Diseño de metodología',                    'A',   'R', 'R'],
-                ['Asignación de recursos',                   'R/A', 'I', 'I'],
-                # Ejecución
-                ['Análisis estático (SAST/SCA)',             'I',   'R/A', 'I'],
-                ['Análisis de cobertura de pruebas',         'I',   'R/A', 'I'],
-                ['Revisión documental del proyecto',         'C',   'C',   'R/A'],
-                ['Recolección de evidencia técnica',         'I',   'R/A', 'C'],
-                ['Registro en plantillas de evidencia',      'A',   'R',   'R'],
-                # Análisis
-                ['Análisis de brechas ISO',                  'A',   'R',   'C'],
+                ['Definición de alcance y objetivos',        'R/A', 'C',   'C'],
+                ['Selección de criterios ISO',               'A',   'R',   'C'],
+                ['Diseño de metodología',                    'A',   'R',   'R'],
+                ['Análisis estático SAST con AuditLens',     'I',   'R/A', 'I'],
+                ['Análisis SCA con pip-audit / npm audit',   'I',   'R/A', 'I'],
+                ['Pruebas DAST con OWASP ZAP',               'I',   'R/A', 'I'],
+                ['Entrevistas al equipo de EcoAlerta',       'C',   'C',   'R/A'],
+                ['Revisión documental del repositorio',      'C',   'C',   'R/A'],
+                ['Recolección y custodia de evidencia',      'A',   'R',   'R'],
                 ['Análisis de causa raíz (5 Porqués)',       'A',   'R',   'C'],
                 ['Tablas de correlación de hallazgos',       'A',   'R',   'C'],
-                ['Formulación de hallazgos',                 'A',   'R',   'C'],
-                # Informe
-                ['Redacción del informe de auditoría',       'R/A', 'C',   'C'],
+                ['Formulación de hallazgos Cond/Crit/Efecto','A',   'R',   'C'],
+                ['Redacción del informe final',              'R/A', 'C',   'C'],
                 ['Revisión y aprobación del informe',        'R/A', 'C',   'C'],
-                ['Presentación de resultados al cliente',    'R/A', 'C',   'I'],
-                # Seguimiento
-                ['Diseño del plan de seguimiento',           'R/A', 'C',   'C'],
-                ['Monitoreo de KPIs',                        'R',   'C',   'I'],
-                ['Verificación de correcciones',             'A',   'R',   'I'],
+                ['Presentación de resultados a EcoAlerta',   'R/A', 'C',   'I'],
+                ['Gestión de tickets Jira de seguimiento',   'R',   'C',   'I'],
+                ['Re-scan con --diff-baseline mensual',      'I',   'R/A', 'I'],
+                ['Verificación de correcciones implementadas','A',  'R',   'I'],
                 ['Cierre formal de la auditoría',            'R/A', 'C',   'C'],
             ]
         )
 
         self._add_paragraph(
-            'R = Responsable de ejecutar la actividad  |  '
-            'A = Aprobador (autoriza el resultado)  |  '
-            'C = Consultado (aporta información)  |  '
-            'I = Informado (recibe notificación)',
+            'R = Responsable de ejecutar  |  A = Aprobador  |  C = Consultado  |  I = Informado',
             italic=True
         )
-
-        # Detailed responsibilities per phase
-        self._add_heading('Responsabilidades Detalladas por Fase', level=3)
-        phases = [
-            ('Fase 1 — Planificación (Semana 1)',
-             'Auditor Líder',
-             ['Convocar reunión de inicio con el equipo', 'Definir y documentar el alcance final',
-              'Asignar tareas al equipo técnico y de procesos', 'Preparar herramientas (AuditLens, plantillas)']),
-            ('Fase 2 — Ejecución (Semanas 2-3)',
-             'Auditor Técnico',
-             ['Ejecutar auditlens plan . --empresa X --sistema Y', 'Validar y clasificar hallazgos detectados',
-              'Completar plantillas de evidencia con datos reales', 'Documentar casos de prueba ejecutados']),
-            ('Fase 3 — Análisis (Semana 4)',
-             'Auditor Técnico + Líder',
-             ['Realizar análisis de causa raíz para hallazgos críticos', 'Construir tablas de correlación',
-              'Proponer recomendaciones con métricas específicas', 'Revisar conformidad ISO por estándar']),
-            ('Fase 4 — Informe (Semana 5)',
-             'Auditor Líder',
-             ['Generar informe Word final con auditlens plan', 'Revisar y completar secciones manuales',
-              'Obtener aprobación del equipo auditor', 'Presentar resultados al cliente']),
-            ('Fase 5 — Seguimiento (Trimestral)',
-             'Auditor Líder',
-             ['Ejecutar re-scan con --diff-baseline', 'Revisar estado de KPIs con el cliente',
-              'Documentar progreso de correcciones', 'Actualizar baseline cuando se resuelvan hallazgos']),
-        ]
-
-        for phase_name, responsible, activities in phases:
-            self._add_heading(phase_name, level=3)
-            self._add_paragraph(f'Responsable principal: {responsible}', bold=True)
-            for act in activities:
-                p = self.doc.add_paragraph(style='List Bullet')
-                p.add_run(act)
 
     def add_specific_recommendations(self, findings: List[dict],
                                       gap_analysis: Dict, test_analysis: Dict,
@@ -1786,35 +1814,73 @@ class DocxReportExporter:
         iso25040_score = gap_analysis.get('iso25040', {}).get('puntuacion_general', 0)
         iso12207_score = gap_analysis.get('iso12207', {}).get('puntuacion_general', 0)
 
-        # Specific recommendations with metrics
+        # FIX: build accurate critical recommendation based on ACTUAL critical findings
+        critical_findings = [f for f in findings if f.get('severity', '').upper() == 'CRITICAL']
+        critical_rule_ids = list({f.get('rule_id', '') for f in critical_findings})
+        critical_summary = ', '.join(critical_rule_ids[:4]) if critical_rule_ids else 'N/A'
+
+        # Map critical rule_ids to specific actions
+        critical_actions_map = {
+            'DESER-01': 'Reemplazar pickle.loads() por json.loads() en backend/reportes/services.py y views.py',
+            'INJ-01':   'Reemplazar la query SQL dinámica en views.py:841 por cursor.execute() con parámetros vinculados',
+            'SEC-07':   'Eliminar el uso de algorithm="none" en JWT en views.py:2412; usar RS256 o HS256',
+            'SEC-01':   'Mover credenciales hardcodeadas a variables de entorno; revocar tokens expuestos',
+            'CONF-04':  'Cambiar DEBUG=True a DEBUG=False en settings.py y usar variable de entorno',
+        }
+        specific_critical_actions = [
+            critical_actions_map.get(rid, f'Corregir hallazgo {rid} según recomendación técnica del informe')
+            for rid in critical_rule_ids[:5]
+        ]
+        if not specific_critical_actions:
+            specific_critical_actions = ['Revisar y corregir todos los hallazgos CRÍTICOS detectados']
+
+        # Specific recommendations with metrics — FIXED to use real critical findings
         recommendations = [
             {
                 'prioridad': 'CRÍTICA — Inmediata (< 48 horas)',
-                'recomendacion': f'Eliminar todos los secretos hardcodeados detectados ({counts["CRITICAL"]} hallazgos críticos)',
-                'acciones': [
-                    'Revocar todas las credenciales expuestas en el repositorio',
-                    'Implementar python-dotenv o variables de entorno del sistema operativo',
-                    'Instalar pre-commit hook: pip install detect-secrets && detect-secrets scan',
-                    'Agregar .env y archivos de credenciales al .gitignore',
+                'recomendacion': (
+                    f'Corregir los {counts["CRITICAL"]} hallazgos CRÍTICOS detectados: '
+                    f'{critical_summary}'
+                ),
+                'acciones': specific_critical_actions + [
+                    'Ejecutar re-scan con AuditLens para verificar la corrección: auditlens scan . --severity CRITICAL',
+                    'Crear tickets en Jira con prioridad "Blocker" para cada hallazgo CRÍTICO',
                 ],
-                'metrica_exito': f'Reducir hallazgos CRÍTICOS de {counts["CRITICAL"]} a 0 en 48 horas',
-                'verificacion': 'Ejecutar: auditlens scan . --severity CRITICAL --no-sca y verificar cero hallazgos',
-                'responsable': 'Auditor Técnico + Equipo de Desarrollo',
-                'iso': 'ISO 25040 — Confidencialidad; ISO 14764 — Mantenimiento Correctivo',
+                'metrica_exito': f'Reducir hallazgos CRÍTICOS de {counts["CRITICAL"]} a 0 antes del 08/06/2026',
+                'verificacion': 'auditlens scan . --severity CRITICAL --no-sca → resultado esperado: 0 hallazgos',
+                'responsable': 'Marcelo Acevedo (Auditor Técnico) + Equipo de Desarrollo EcoAlerta',
+                'iso': 'ISO 25040 — Seguridad Funcional; ISO 14764 — Mantenimiento Correctivo',
             },
             {
                 'prioridad': 'ALTA — Urgente (< 1 semana)',
-                'recomendacion': f'Implementar consultas parametrizadas en todos los accesos a base de datos ({counts["HIGH"]} hallazgos altos)',
+                'recomendacion': f'Remediar los {counts["HIGH"]} hallazgos ALTOS en el backend Django y frontend React',
                 'acciones': [
-                    'Reemplazar concatenación de strings en queries SQL por prepared statements',
-                    'Adoptar ORM (SQLAlchemy, Django ORM, Hibernate) para acceso a datos',
-                    'Implementar capa de validación de entrada centralizada',
-                    'Ejecutar suite de pruebas de inyección SQL con OWASP ZAP',
+                    'backend/reportes/views.py: reemplazar consultas SQL con concatenación por ORM de Django o prepared statements',
+                    'backend/reportes/utils.py: reemplazar hashlib.md5() por hashlib.sha256() para hashing de datos',
+                    'frontend/src/config.js: mover la IP hardcodeada a variable de entorno REACT_APP_API_HOST',
+                    'backend/reportes/views.py: sanitizar todos los datos de usuario antes de pasarlos a funciones peligrosas (flujos TAINT-01)',
+                    'Ejecutar OWASP ZAP sobre el ambiente de desarrollo para validar correcciones',
+                    'Crear tickets en Jira con prioridad "Critical" para cada hallazgo ALTO',
                 ],
                 'metrica_exito': f'Reducir hallazgos ALTOS de {counts["HIGH"]} a menos de {max(1, int(counts["HIGH"] * 0.2))} en 1 semana',
-                'verificacion': 'Re-escanear con auditlens scan . --diff-baseline .auditlens-baseline.json',
-                'responsable': 'Auditor Técnico + Líder Técnico del equipo de desarrollo',
-                'iso': 'ISO 25040 — Integridad; ISO 12207 — Codificación; CWE-89',
+                'verificacion': 'auditlens scan . --diff-baseline .auditlens-baseline.json → cero hallazgos nuevos',
+                'responsable': 'Marcelo Acevedo (Auditor Técnico) + Equipo de Desarrollo EcoAlerta',
+                'iso': 'ISO 25040 — Integridad; ISO 12207 — Codificación; CWE-89, CWE-327',
+            },
+            {
+                'prioridad': 'CRÍTICA ESPECÍFICA — JWT None Algorithm (< 24 horas)',
+                'recomendacion': 'Eliminar el uso de algorithm="none" en JWT (views.py:2412) — permite tokens sin firma',
+                'acciones': [
+                    'Localizar jwt.decode() o jwt.encode() con algorithm="none" en backend/reportes/views.py:2412',
+                    'Reemplazar por algorithm="HS256" con una clave secreta segura desde variable de entorno',
+                    'Ejemplo correcto: jwt.encode(payload, os.environ["JWT_SECRET"], algorithm="HS256")',
+                    'Verificar que ningún otro endpoint acepte tokens sin verificación de firma',
+                    'Agregar test de seguridad que verifique rechazo de tokens con algoritmo "none"',
+                ],
+                'metrica_exito': 'Cero hallazgos SEC-07-JWT-NONE-ALGORITHM en el re-scan',
+                'verificacion': 'auditlens scan backend/ --severity CRITICAL → sin hallazgos SEC-07',
+                'responsable': 'Marcelo Acevedo (Auditor Técnico) + Backend Lead de EcoAlerta',
+                'iso': 'ISO 25040 — Autenticidad; CWE-347; CVE-2015-9235',
             },
             {
                 'prioridad': 'ALTA — Planificada (< 1 mes)',
