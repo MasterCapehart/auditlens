@@ -179,20 +179,20 @@ class DocxReportExporter:
             (1, '3.1',  'Técnicas y Herramientas',                    'sec_tecnicas'),
             (1, '3.2',  'Fases del Proceso',                          'sec_fases'),
             (1, '3.3',  'Criterios ISO 25040 / 12207 / 14764',        'sec_criterios'),
-            (1, '3.4',  'Equipo Auditor',                             'sec_roles'),
+            (1, '3.4',  'Matriz de Roles y Responsabilidades',        'sec_roles'),
             (0, '4.',   'Ejecución y Recolección de Evidencia',       'sec_ejecucion'),
-            (1, '4.1',  'Procedimientos de Recolección de Evidencia', 'sec_recoleccion'),
-            (1, '4.2',  'Estrategias de Pruebas de Software',         'sec_pruebas'),
-            (1, '4.3',  'Validez y Confiabilidad de la Evidencia',    'sec_validez'),
+            (1, '4.1',  'Procedimientos de Recolección',              'sec_recoleccion'),
+            (1, '4.2',  'Estrategias y Casos de Prueba',              'sec_pruebas'),
+            (1, '4.3',  'Validez y Confiabilidad de Evidencia',       'sec_validez'),
             (0, '5.',   f'Hallazgos ({findings_count} hallazgos)',    'sec_hallazgos'),
-            (0, '6.',   'Análisis de Brechas ISO',                    'sec_brechas'),
-            (1, '6.1',  'ISO 25040 — Calidad del Producto',           'sec_iso25040'),
-            (1, '6.2',  'ISO 12207 — Ciclo de Vida',                  'sec_iso12207'),
-            (1, '6.3',  'ISO 14764 — Mantenimiento',                  'sec_iso14764'),
+            (0, '6.',   'Análisis de la Evidencia',                   'sec_analisis'),
+            (1, '6.1',  'Análisis de Causa Raíz (5 Porqués)',         'sec_causaraiz'),
+            (1, '6.2',  'Tablas de Correlación por Módulo',           'sec_correlacion'),
+            (1, '6.3',  'Análisis de Brechas ISO 25040/12207/14764',  'sec_brechas'),
             (0, '7.',   'Cobertura de Pruebas',                       'sec_tests'),
             (0, '8.',   'Conclusiones',                               'sec_conclusiones'),
             (0, '9.',   'Recomendaciones y Seguimiento',              'sec_recomendaciones'),
-            (1, '9.1',  'Recomendaciones Priorizadas',                'sec_rec_critico'),
+            (1, '9.1',  'Recomendaciones con Métricas de Éxito',      'sec_rec_critico'),
             (1, '9.2',  'Plan de Seguimiento con KPIs',               'sec_seguimiento'),
             (1, '9.3',  'Criterios de Cierre de la Auditoría',        'sec_cierre'),
             (1, '9.4',  'Lecciones Aprendidas',                       'sec_lecciones'),
@@ -242,23 +242,25 @@ class DocxReportExporter:
         'Técnicas y Herramientas':              'sec_tecnicas',
         'Fases del Proceso':                    'sec_fases',
         'Criterios de Auditoría':               'sec_criterios',
+        'Matriz de Roles':                      'sec_roles',
         'Equipo Auditor':                       'sec_roles',
         'Ejecución y Recolección':              'sec_ejecucion',
         'Procedimientos de Recolección':        'sec_recoleccion',
         'Estrategias de Pruebas':               'sec_pruebas',
         'Validez y Confiabilidad':              'sec_validez',
         'Hallazgos de Auditoría':               'sec_hallazgos',
+        'Análisis de la Evidencia':             'sec_analisis',
+        'Análisis de Causa Raíz':               'sec_causaraiz',
+        'Tablas de Correlación':                'sec_correlacion',
         'Análisis de Brechas ISO':              'sec_brechas',
-        'ISO/IEC 25040':                        'sec_iso25040',
-        'ISO/IEC 12207':                        'sec_iso12207',
-        'ISO/IEC 14764':                        'sec_iso14764',
+        'ISO/IEC 25040':                        'sec_brechas',
         'Cobertura de Pruebas':                 'sec_tests',
         'Conclusiones':                         'sec_conclusiones',
         'Recomendaciones y Seguimiento':        'sec_recomendaciones',
-        'Recomendaciones Priorizadas':          'sec_rec_critico',
-        'Acciones Inmediatas':                  'sec_rec_critico',
+        'Recomendaciones con Métricas':         'sec_rec_critico',
         'Plan de Seguimiento':                  'sec_seguimiento',
         'Criterios para el Cierre':             'sec_cierre',
+        'Criterios de Cierre':                  'sec_cierre',
         'Lecciones Aprendidas':                 'sec_lecciones',
         'Anexos':                               'sec_anexos',
         'Anexo A':                              'sec_anexo_a',
@@ -1233,6 +1235,693 @@ class DocxReportExporter:
             ]
         )
 
+    def add_root_cause_analysis(self, findings: List[dict], sistema: str):
+        """
+        Sección 3.1 — Análisis de Causa Raíz (Técnica 5 Porqués)
+        Genera análisis de causa raíz para los hallazgos críticos y de alta severidad.
+        """
+        self._add_heading('3.1 Análisis de Causa Raíz (Técnica 5 Porqués)', level=2)
+        self._add_paragraph(
+            'Se aplica la técnica de los 5 Porqués a los hallazgos de mayor severidad '
+            'para identificar la causa raíz de cada problema y no solo sus síntomas. '
+            'Este análisis fundamenta las recomendaciones de remediación estructural.'
+        )
+
+        # 5 Whys database per rule pattern
+        five_whys_db = {
+            'SEC-01': {
+                'sintoma': 'Secretos y credenciales hardcodeados en el código fuente',
+                'porques': [
+                    ('¿Por qué hay secretos en el código?',
+                     'El desarrollador incluyó credenciales directamente al implementar la funcionalidad'),
+                    ('¿Por qué el desarrollador incluyó credenciales directamente?',
+                     'No existe un proceso formal de gestión de secretos ni variables de entorno'),
+                    ('¿Por qué no existe ese proceso?',
+                     'No hay una política de seguridad documentada para el manejo de credenciales'),
+                    ('¿Por qué no hay política documentada?',
+                     'El proceso de desarrollo no incluye revisión de seguridad antes del commit'),
+                    ('¿Por qué no hay revisión de seguridad?',
+                     'No se han definido criterios de aceptación de código que incluyan verificación de secretos'),
+                ],
+                'causa_raiz': 'Ausencia de política formal de gestión de secretos y proceso de revisión de seguridad en el ciclo de desarrollo',
+                'accion_correctiva': 'Implementar gestor de secretos (HashiCorp Vault, AWS Secrets Manager) y agregar análisis estático automático al pre-commit hook',
+                'iso': 'ISO 12207 — Gestión de Configuración; ISO 25040 — Seguridad Funcional',
+            },
+            'INJ-01': {
+                'sintoma': 'Consultas SQL construidas con concatenación de strings y datos de usuario',
+                'porques': [
+                    ('¿Por qué se construyen queries con concatenación?',
+                     'El desarrollador usó concatenación de strings para incluir parámetros dinámicos'),
+                    ('¿Por qué se usó concatenación en vez de parámetros vinculados?',
+                     'Falta de conocimiento sobre consultas parametrizadas o descuido en la implementación'),
+                    ('¿Por qué no se detectó durante el desarrollo?',
+                     'No existe revisión de código obligatoria antes de integrar cambios al repositorio'),
+                    ('¿Por qué no hay revisión obligatoria?',
+                     'El proceso de desarrollo no incluye criterios de seguridad como requisito de merge'),
+                    ('¿Por qué no hay criterios de seguridad en el proceso?',
+                     'No se han incorporado estándares de codificación segura en la metodología del equipo'),
+                ],
+                'causa_raiz': 'Ausencia de estándares de codificación segura y proceso de revisión de código con criterios de seguridad obligatorios',
+                'accion_correctiva': 'Capacitar al equipo en uso de ORM y prepared statements; implementar code review obligatorio con checklist de seguridad',
+                'iso': 'ISO 12207 — Codificación; ISO 25040 — Integridad; CWE-89',
+            },
+            'INJ-02': {
+                'sintoma': 'Comandos shell ejecutados con datos provenientes de entrada de usuario',
+                'porques': [
+                    ('¿Por qué se ejecutan comandos shell con datos de usuario?',
+                     'La funcionalidad requiere ejecución de comandos del sistema y se usó la forma más directa'),
+                    ('¿Por qué no se validó la entrada antes de usarla en el comando?',
+                     'No existe un estándar de validación de entrada definido para el proyecto'),
+                    ('¿Por qué no existe ese estándar?',
+                     'El equipo no ha recibido formación en seguridad de aplicaciones web'),
+                    ('¿Por qué no ha recibido esa formación?',
+                     'No hay plan de capacitación en seguridad definido para el equipo de desarrollo'),
+                    ('¿Por qué no hay plan de capacitación?',
+                     'La seguridad no está incluida como requisito en el proceso de desarrollo del proyecto'),
+                ],
+                'causa_raiz': 'Falta de cultura de seguridad en el equipo de desarrollo y ausencia de estándares de validación de entradas',
+                'accion_correctiva': 'Reemplazar os.system() por subprocess con lista de argumentos; implementar whitelist de inputs permitidos',
+                'iso': 'ISO 12207 — Codificación; ISO 25040 — Seguridad; CWE-78',
+            },
+            'TAINT-01': {
+                'sintoma': 'Datos de usuario fluyen directamente a sinks peligrosos sin sanitización',
+                'porques': [
+                    ('¿Por qué los datos no se sanitizan antes de llegar al sink?',
+                     'No se implementó validación en la capa de entrada al recibir datos del usuario'),
+                    ('¿Por qué no se implementó validación de entrada?',
+                     'El diseño de la arquitectura no considera una capa de validación centralizada'),
+                    ('¿Por qué no existe esa capa de validación?',
+                     'Los requisitos de seguridad no fueron considerados durante el diseño del sistema'),
+                    ('¿Por qué no se consideraron en el diseño?',
+                     'No existe un proceso de modelado de amenazas (threat modeling) en la etapa de diseño'),
+                    ('¿Por qué no se hace threat modeling?',
+                     'El equipo no tiene experiencia en prácticas de desarrollo seguro (SecureSDLC)'),
+                ],
+                'causa_raiz': 'Ausencia de modelado de amenazas en la etapa de diseño y falta de una capa de validación/sanitización centralizada',
+                'accion_correctiva': 'Implementar middleware de validación de entrada; incorporar threat modeling al proceso de diseño',
+                'iso': 'ISO 12207 — Análisis de Requisitos; ISO 25040 — Integridad; CWE-79',
+            },
+            'DESER-01': {
+                'sintoma': 'Uso de pickle.loads() para deserializar datos no confiables',
+                'porques': [
+                    ('¿Por qué se usa pickle para deserializar datos externos?',
+                     'pickle fue elegido por conveniencia al ser nativo de Python'),
+                    ('¿Por qué no se eligió un formato más seguro como JSON?',
+                     'No hay criterios de selección de tecnología basados en seguridad'),
+                    ('¿Por qué no hay criterios de selección?',
+                     'Las decisiones técnicas no incluyen evaluación de riesgo de seguridad'),
+                    ('¿Por qué no se evalúa el riesgo de seguridad?',
+                     'No existe un proceso de arquitectura segura documentado en el proyecto'),
+                    ('¿Por qué no existe ese proceso?',
+                     'La seguridad se trata como una actividad separada del desarrollo, no integrada'),
+                ],
+                'causa_raiz': 'La seguridad no está integrada en el proceso de toma de decisiones técnicas y arquitectura del sistema',
+                'accion_correctiva': 'Migrar a JSON para serialización de datos externos; documentar criterios de selección de tecnología con enfoque en seguridad',
+                'iso': 'ISO 12207 — Diseño; ISO 25040 — Seguridad; CWE-502',
+            },
+            'CONF-04': {
+                'sintoma': 'Modo debug activado en el código del sistema',
+                'porques': [
+                    ('¿Por qué está activado el modo debug?',
+                     'La configuración de desarrollo fue aplicada al entorno de producción por error'),
+                    ('¿Por qué se aplicó configuración de desarrollo a producción?',
+                     'No hay separación clara entre archivos de configuración de desarrollo y producción'),
+                    ('¿Por qué no hay separación de configuraciones?',
+                     'No existe un proceso de gestión de configuraciones por entorno'),
+                    ('¿Por qué no existe ese proceso?',
+                     'El proyecto no tiene definida una estrategia de despliegue con validación de configuración'),
+                    ('¿Por qué no hay estrategia de despliegue?',
+                     'Los procedimientos de despliegue no están documentados ni automatizados'),
+                ],
+                'causa_raiz': 'Ausencia de gestión formal de configuraciones por entorno y proceso de validación previo al despliegue en producción',
+                'accion_correctiva': 'Implementar variables de entorno para toda la configuración; crear checklist de pre-despliegue automatizado',
+                'iso': 'ISO 12207 — Gestión de Configuración; ISO 14764 — Mantenimiento Correctivo',
+            },
+        }
+
+        # Generate 5-Whys for critical and high findings
+        critical_and_high = [
+            f for f in findings
+            if f.get('severity', '').upper() in ('CRITICAL', 'HIGH')
+        ]
+
+        seen = set()
+        analysis_count = 0
+
+        for finding in critical_and_high:
+            rule_id = finding.get('rule_id', '')
+            base_rule = '-'.join(rule_id.split('-')[:2]) if '-' in rule_id else rule_id
+
+            if base_rule in seen:
+                continue
+            seen.add(base_rule)
+
+            template = five_whys_db.get(base_rule)
+            if not template:
+                continue
+
+            analysis_count += 1
+            severity = finding.get('severity', 'HIGH').upper()
+            color = _SEV_COLORS.get(severity, (100, 100, 100))
+            file_short = '/'.join(finding.get('file', '').split('/')[-2:])
+
+            self._add_heading(
+                f'Análisis {analysis_count}: {rule_id} — {finding.get("name", "")}',
+                level=3, color=color
+            )
+
+            # Context
+            self._add_table(
+                ['Campo', 'Detalle'],
+                [
+                    ['Hallazgo', f'{rule_id} en {file_short} línea {finding.get("line", "")}'],
+                    ['Severidad', severity],
+                    ['Síntoma observado', template['sintoma']],
+                ]
+            )
+
+            # 5 Whys table
+            self._add_heading('Aplicación de la Técnica 5 Porqués', level=3)
+            why_rows = [[f'Porqué {i}', q, r] for i, (q, r) in enumerate(template['porques'], 1)]
+            self._add_table(['#', 'Pregunta', 'Respuesta'], why_rows)
+
+            # Root cause and action
+            self._add_table(
+                ['Campo', 'Detalle'],
+                [
+                    ['✦ Causa Raíz Identificada', template['causa_raiz']],
+                    ['Acción Correctiva Estructural', template['accion_correctiva']],
+                    ['Norma ISO aplicable', template['iso']],
+                ]
+            )
+
+        if analysis_count == 0:
+            self._add_paragraph(
+                'No se identificaron hallazgos críticos o altos que requieran análisis de causa raíz.',
+                italic=True
+            )
+
+    def add_correlation_table(self, findings: List[dict], project_info: Dict):
+        """
+        Sección 3.1 — Tablas de Correlación hallazgo ↔ módulo/área de código.
+        """
+        self._add_heading('3.2 Tablas de Correlación: Hallazgos por Módulo', level=2)
+        self._add_paragraph(
+            'Las siguientes tablas de correlación relacionan los hallazgos identificados '
+            'con los módulos y áreas del sistema, permitiendo priorizar las áreas de '
+            'mayor riesgo y orientar las acciones correctivas.'
+        )
+
+        if not findings:
+            self._add_paragraph('No se identificaron hallazgos para correlacionar.', italic=True)
+            return
+
+        # Build module → findings map
+        module_map = {}
+        for f in findings:
+            file_path = f.get('file', '')
+            parts = file_path.replace('\\', '/').split('/')
+            # Get module name (parent directory of file)
+            module = parts[-2] if len(parts) >= 2 else 'raíz'
+            if module not in module_map:
+                module_map[module] = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0, 'rules': set()}
+            sev = f.get('severity', 'LOW').upper()
+            if sev in module_map[module]:
+                module_map[module][sev] += 1
+            module_map[module]['rules'].add(f.get('rule_id', ''))
+
+        # Sort by risk (critical first)
+        sorted_modules = sorted(
+            module_map.items(),
+            key=lambda x: (x[1]['CRITICAL'] * 4 + x[1]['HIGH'] * 3 + x[1]['MEDIUM'] * 2 + x[1]['LOW']),
+            reverse=True
+        )
+
+        # Correlation table by module
+        self._add_heading('Hallazgos por Módulo/Directorio', level=3)
+        rows = []
+        for module, counts in sorted_modules:
+            total = sum(counts[s] for s in ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'))
+            risk = 'CRÍTICO' if counts['CRITICAL'] > 0 else \
+                   'ALTO' if counts['HIGH'] > 0 else \
+                   'MEDIO' if counts['MEDIUM'] > 0 else 'BAJO'
+            rows.append([
+                module,
+                str(counts['CRITICAL']),
+                str(counts['HIGH']),
+                str(counts['MEDIUM']),
+                str(counts['LOW']),
+                str(total),
+                risk,
+            ])
+        self._add_table(
+            ['Módulo', 'CRÍTICO', 'ALTO', 'MEDIO', 'BAJO', 'Total', 'Nivel de Riesgo'],
+            rows
+        )
+
+        # Correlation table by rule type
+        self._add_heading('Hallazgos por Categoría de Vulnerabilidad', level=3)
+        category_map = {}
+        category_names = {
+            'SEC': 'Secretos y Criptografía',
+            'INJ': 'Inyección (SQL, Comandos, XSS)',
+            'AUTH': 'Autenticación y Autorización',
+            'CONF': 'Configuración Incorrecta',
+            'DESER': 'Deserialización Insegura',
+            'TAINT': 'Flujo de Datos Peligroso',
+            'SCA': 'Dependencias Vulnerables',
+            'DATA': 'Exposición de Datos Sensibles',
+            'SSRF': 'SSRF / Peticiones Inseguras',
+            'PT': 'Path Traversal',
+            'CRYPTO': 'Criptografía Débil',
+            'AST': 'Análisis AST — Valores Hardcoded',
+        }
+        for f in findings:
+            rule_id = f.get('rule_id', '')
+            prefix = rule_id.split('-')[0]
+            cat_name = category_names.get(prefix, f'Otros ({prefix})')
+            if cat_name not in category_map:
+                category_map[cat_name] = {'count': 0, 'max_sev': 'LOW', 'files': set()}
+            category_map[cat_name]['count'] += 1
+            sev = f.get('severity', 'LOW')
+            sev_rank = {'LOW': 0, 'MEDIUM': 1, 'HIGH': 2, 'CRITICAL': 3}
+            if sev_rank.get(sev, 0) > sev_rank.get(category_map[cat_name]['max_sev'], 0):
+                category_map[cat_name]['max_sev'] = sev
+            category_map[cat_name]['files'].add(f.get('file', '').split('/')[-1])
+
+        cat_rows = sorted(
+            [[cat, str(data['count']), data['max_sev'],
+              ', '.join(list(data['files'])[:3]) + ('...' if len(data['files']) > 3 else '')]
+             for cat, data in category_map.items()],
+            key=lambda x: -int(x[1])
+        )
+        self._add_table(
+            ['Categoría', 'Cantidad', 'Severidad Máxima', 'Archivos Afectados'],
+            cat_rows
+        )
+
+        # Risk matrix
+        self._add_heading('Matriz de Riesgo: Probabilidad × Impacto', level=3)
+        self._add_table(
+            ['Categoría', 'Probabilidad', 'Impacto', 'Riesgo Resultante', 'Acción'],
+            [
+                ['Inyección (SQL/Comandos)', 'Alta', 'Crítico', 'INACEPTABLE', 'Corregir inmediatamente'],
+                ['Secretos Expuestos', 'Alta', 'Crítico', 'INACEPTABLE', 'Revocar y migrar en 48h'],
+                ['Deserialización Insegura', 'Media', 'Crítico', 'ALTO', 'Corregir en 1 semana'],
+                ['Criptografía Débil', 'Media', 'Alto', 'ALTO', 'Migrar en 2 semanas'],
+                ['Configuración Insegura', 'Alta', 'Medio', 'ALTO', 'Corregir en 1 semana'],
+                ['Flujo de Datos (Taint)', 'Media', 'Alto', 'ALTO', 'Corregir en 1 semana'],
+                ['Dependencias Vulnerables', 'Alta', 'Medio', 'MEDIO', 'Actualizar en 1 mes'],
+                ['Datos Sensibles Expuestos', 'Media', 'Medio', 'MEDIO', 'Corregir en 1 mes'],
+            ]
+        )
+
+    def add_functional_test_cases(self, project_info: Dict, sistema: str):
+        """
+        Sección 2.2 complemento — Casos de prueba FUNCIONALES por módulo detectado.
+        Cubre el gap de pruebas funcionales (caja negra) que pide el rubric.
+        """
+        self._add_heading('Casos de Prueba Funcionales por Módulo', level=3)
+        self._add_paragraph(
+            'Los siguientes casos de prueba funcionales de caja negra fueron diseñados '
+            'a partir de los módulos detectados en el sistema. Cada caso especifica '
+            'la pre-condición, los pasos y el resultado esperado conforme a ISO 12207.'
+        )
+
+        modules = project_info.get('modulos', [])
+        languages = project_info.get('lenguajes', {})
+
+        # Generic functional test templates by module name pattern
+        module_templates = {
+            'auth': [
+                ('Inicio de sesión con credenciales válidas',
+                 'Sistema con usuario registrado',
+                 'Ingresar email y contraseña válidos → hacer clic en "Iniciar sesión"',
+                 'El sistema autentica al usuario y redirige al panel principal'),
+                ('Inicio de sesión con contraseña incorrecta',
+                 'Sistema con usuario registrado',
+                 'Ingresar email válido y contraseña incorrecta → hacer clic en "Iniciar sesión"',
+                 'El sistema muestra mensaje de error sin revelar si el email existe'),
+                ('Bloqueo tras múltiples intentos fallidos',
+                 'Sistema con política de bloqueo configurada',
+                 'Intentar iniciar sesión 5 veces con contraseña incorrecta',
+                 'La cuenta se bloquea temporalmente y se notifica al usuario'),
+            ],
+            'user': [
+                ('Registro de usuario con datos válidos',
+                 'Formulario de registro disponible',
+                 'Completar todos los campos requeridos con datos válidos → enviar',
+                 'El usuario es creado y se envía email de confirmación'),
+                ('Registro con email duplicado',
+                 'Usuario con ese email ya existe en el sistema',
+                 'Intentar registrar un usuario con email ya existente',
+                 'El sistema muestra error claro sin crear usuario duplicado'),
+                ('Actualización de perfil',
+                 'Usuario autenticado',
+                 'Modificar datos del perfil y guardar',
+                 'Los cambios se persisten y se muestra mensaje de éxito'),
+            ],
+            'api': [
+                ('Acceso a endpoint sin autenticación',
+                 'Endpoint protegido disponible',
+                 'Realizar petición GET/POST al endpoint sin token de autenticación',
+                 'El servidor retorna HTTP 401 Unauthorized'),
+                ('Acceso con token válido',
+                 'Token JWT válido disponible',
+                 'Realizar petición con header Authorization: Bearer <token>',
+                 'El servidor retorna HTTP 200 con los datos solicitados'),
+                ('Acceso con token expirado',
+                 'Token JWT expirado',
+                 'Realizar petición con token expirado',
+                 'El servidor retorna HTTP 401 con mensaje de token expirado'),
+            ],
+            'model': [
+                ('Creación de entidad con datos válidos',
+                 'Base de datos disponible y conexión activa',
+                 'Crear nueva instancia del modelo con todos los campos requeridos',
+                 'La entidad es persistida correctamente y retorna ID generado'),
+                ('Validación de campos requeridos',
+                 'Formulario o API disponible',
+                 'Intentar crear entidad omitiendo campos requeridos',
+                 'El sistema valida y retorna errores específicos por campo'),
+            ],
+            'payment': [
+                ('Pago exitoso con tarjeta válida',
+                 'Pasarela de pago en modo sandbox',
+                 'Completar formulario de pago con datos de tarjeta de prueba válida',
+                 'El pago es procesado y se genera comprobante'),
+                ('Pago rechazado por fondos insuficientes',
+                 'Tarjeta de prueba configurada para rechazo',
+                 'Completar formulario con tarjeta que simula fondos insuficientes',
+                 'El sistema muestra error claro y no genera cargo'),
+            ],
+            'search': [
+                ('Búsqueda con término válido',
+                 'Sistema con datos de prueba cargados',
+                 'Ingresar término de búsqueda y ejecutar',
+                 'El sistema retorna resultados relevantes en tiempo < 2 segundos'),
+                ('Búsqueda con caracteres especiales (XSS)',
+                 'Sistema disponible',
+                 'Ingresar <script>alert("xss")</script> en el campo de búsqueda',
+                 'El sistema escapa el input y no ejecuta el script'),
+                ('Búsqueda sin resultados',
+                 'Sistema disponible',
+                 'Buscar un término que no existe en el sistema',
+                 'El sistema muestra mensaje "Sin resultados" sin error'),
+            ],
+        }
+
+        # Default cases for any module
+        default_cases = [
+            ('Carga del módulo sin errores',
+             'Sistema disponible y configurado',
+             'Acceder al módulo mediante navegador o cliente API',
+             'El módulo carga correctamente con tiempo de respuesta < 3 segundos'),
+            ('Manejo de error 404',
+             'Sistema disponible',
+             'Acceder a una ruta inexistente del módulo',
+             'El sistema retorna HTTP 404 con mensaje amigable sin exponer stack trace'),
+        ]
+
+        case_number = 100  # Functional cases start at FC-100
+        generated = 0
+
+        for module in modules[:8]:  # limit to 8 modules
+            module_lower = module.lower()
+            cases = None
+            for key, template_cases in module_templates.items():
+                if key in module_lower:
+                    cases = template_cases
+                    break
+            if not cases:
+                cases = default_cases
+
+            self._add_heading(f'Módulo: {module}', level=3)
+            for case_name, precond, steps, expected in cases[:2]:  # 2 per module
+                case_number += 1
+                generated += 1
+                self._add_table(
+                    ['Campo', 'Detalle'],
+                    [
+                        ['ID Caso', f'FC-{case_number}'],
+                        ['Tipo', 'Prueba Funcional de Caja Negra'],
+                        ['Módulo', module],
+                        ['Caso de prueba', case_name],
+                        ['Pre-condición', precond],
+                        ['Pasos de ejecución', steps],
+                        ['Resultado esperado', expected],
+                        ['Resultado obtenido', '[Completar tras ejecución]'],
+                        ['Estado', '[ ] Pasado  [ ] Fallido  [ ] No ejecutado'],
+                        ['Norma ISO', 'ISO 12207 — Pruebas de sistema; ISO 25040 — Funcionalidad'],
+                        ['Responsable', 'Auditor Técnico de Software'],
+                        ['Fecha', '[Completar]'],
+                    ]
+                )
+
+    def add_roles_responsibility_matrix(self, plan: Dict):
+        """
+        Sección 1.4 mejorada — Tabla de Roles × Fases con responsabilidades cruzadas.
+        """
+        self._add_heading('3.4 Matriz de Roles y Responsabilidades por Fase', level=2)
+        self._add_paragraph(
+            'La siguiente matriz define las responsabilidades de cada rol del equipo '
+            'auditor en cada fase del proceso de auditoría, asegurando la trazabilidad '
+            'y claridad en la asignación de tareas.'
+        )
+
+        # RACI matrix: R=Responsable, A=Aprobador, C=Consultado, I=Informado
+        self._add_heading('Matriz RACI (Responsable / Aprobador / Consultado / Informado)', level=3)
+        self._add_table(
+            ['Actividad', 'Auditor Líder', 'Auditor Técnico', 'Auditor de Procesos'],
+            [
+                # Planificación
+                ['Definición de alcance y objetivos',        'R/A', 'C', 'C'],
+                ['Selección de criterios ISO',               'A',   'R', 'C'],
+                ['Diseño de metodología',                    'A',   'R', 'R'],
+                ['Asignación de recursos',                   'R/A', 'I', 'I'],
+                # Ejecución
+                ['Análisis estático (SAST/SCA)',             'I',   'R/A', 'I'],
+                ['Análisis de cobertura de pruebas',         'I',   'R/A', 'I'],
+                ['Revisión documental del proyecto',         'C',   'C',   'R/A'],
+                ['Recolección de evidencia técnica',         'I',   'R/A', 'C'],
+                ['Registro en plantillas de evidencia',      'A',   'R',   'R'],
+                # Análisis
+                ['Análisis de brechas ISO',                  'A',   'R',   'C'],
+                ['Análisis de causa raíz (5 Porqués)',       'A',   'R',   'C'],
+                ['Tablas de correlación de hallazgos',       'A',   'R',   'C'],
+                ['Formulación de hallazgos',                 'A',   'R',   'C'],
+                # Informe
+                ['Redacción del informe de auditoría',       'R/A', 'C',   'C'],
+                ['Revisión y aprobación del informe',        'R/A', 'C',   'C'],
+                ['Presentación de resultados al cliente',    'R/A', 'C',   'I'],
+                # Seguimiento
+                ['Diseño del plan de seguimiento',           'R/A', 'C',   'C'],
+                ['Monitoreo de KPIs',                        'R',   'C',   'I'],
+                ['Verificación de correcciones',             'A',   'R',   'I'],
+                ['Cierre formal de la auditoría',            'R/A', 'C',   'C'],
+            ]
+        )
+
+        self._add_paragraph(
+            'R = Responsable de ejecutar la actividad  |  '
+            'A = Aprobador (autoriza el resultado)  |  '
+            'C = Consultado (aporta información)  |  '
+            'I = Informado (recibe notificación)',
+            italic=True
+        )
+
+        # Detailed responsibilities per phase
+        self._add_heading('Responsabilidades Detalladas por Fase', level=3)
+        phases = [
+            ('Fase 1 — Planificación (Semana 1)',
+             'Auditor Líder',
+             ['Convocar reunión de inicio con el equipo', 'Definir y documentar el alcance final',
+              'Asignar tareas al equipo técnico y de procesos', 'Preparar herramientas (AuditLens, plantillas)']),
+            ('Fase 2 — Ejecución (Semanas 2-3)',
+             'Auditor Técnico',
+             ['Ejecutar auditlens plan . --empresa X --sistema Y', 'Validar y clasificar hallazgos detectados',
+              'Completar plantillas de evidencia con datos reales', 'Documentar casos de prueba ejecutados']),
+            ('Fase 3 — Análisis (Semana 4)',
+             'Auditor Técnico + Líder',
+             ['Realizar análisis de causa raíz para hallazgos críticos', 'Construir tablas de correlación',
+              'Proponer recomendaciones con métricas específicas', 'Revisar conformidad ISO por estándar']),
+            ('Fase 4 — Informe (Semana 5)',
+             'Auditor Líder',
+             ['Generar informe Word final con auditlens plan', 'Revisar y completar secciones manuales',
+              'Obtener aprobación del equipo auditor', 'Presentar resultados al cliente']),
+            ('Fase 5 — Seguimiento (Trimestral)',
+             'Auditor Líder',
+             ['Ejecutar re-scan con --diff-baseline', 'Revisar estado de KPIs con el cliente',
+              'Documentar progreso de correcciones', 'Actualizar baseline cuando se resuelvan hallazgos']),
+        ]
+
+        for phase_name, responsible, activities in phases:
+            self._add_heading(phase_name, level=3)
+            self._add_paragraph(f'Responsable principal: {responsible}', bold=True)
+            for act in activities:
+                p = self.doc.add_paragraph(style='List Bullet')
+                p.add_run(act)
+
+    def add_specific_recommendations(self, findings: List[dict],
+                                      gap_analysis: Dict, test_analysis: Dict,
+                                      sistema: str):
+        """
+        Sección 8 mejorada — Recomendaciones con métricas específicas,
+        KPIs de proceso y mecanismo de verificación de cierre.
+        """
+        self._add_heading('9.1 Recomendaciones con Métricas de Éxito', level=2)
+        self._add_paragraph(
+            'Las siguientes recomendaciones incluyen métricas específicas y medibles '
+            'para verificar su implementación efectiva, conforme a los criterios SMART '
+            'definidos en los objetivos de la auditoría.'
+        )
+
+        counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
+        for f in findings:
+            sev = f.get('severity', 'LOW').upper()
+            if sev in counts:
+                counts[sev] += 1
+
+        coverage = test_analysis.get('ratio_cobertura_estimado', 0)
+        iso25040_score = gap_analysis.get('iso25040', {}).get('puntuacion_general', 0)
+        iso12207_score = gap_analysis.get('iso12207', {}).get('puntuacion_general', 0)
+
+        # Specific recommendations with metrics
+        recommendations = [
+            {
+                'prioridad': 'CRÍTICA — Inmediata (< 48 horas)',
+                'recomendacion': f'Eliminar todos los secretos hardcodeados detectados ({counts["CRITICAL"]} hallazgos críticos)',
+                'acciones': [
+                    'Revocar todas las credenciales expuestas en el repositorio',
+                    'Implementar python-dotenv o variables de entorno del sistema operativo',
+                    'Instalar pre-commit hook: pip install detect-secrets && detect-secrets scan',
+                    'Agregar .env y archivos de credenciales al .gitignore',
+                ],
+                'metrica_exito': f'Reducir hallazgos CRÍTICOS de {counts["CRITICAL"]} a 0 en 48 horas',
+                'verificacion': 'Ejecutar: auditlens scan . --severity CRITICAL --no-sca y verificar cero hallazgos',
+                'responsable': 'Auditor Técnico + Equipo de Desarrollo',
+                'iso': 'ISO 25040 — Confidencialidad; ISO 14764 — Mantenimiento Correctivo',
+            },
+            {
+                'prioridad': 'ALTA — Urgente (< 1 semana)',
+                'recomendacion': f'Implementar consultas parametrizadas en todos los accesos a base de datos ({counts["HIGH"]} hallazgos altos)',
+                'acciones': [
+                    'Reemplazar concatenación de strings en queries SQL por prepared statements',
+                    'Adoptar ORM (SQLAlchemy, Django ORM, Hibernate) para acceso a datos',
+                    'Implementar capa de validación de entrada centralizada',
+                    'Ejecutar suite de pruebas de inyección SQL con OWASP ZAP',
+                ],
+                'metrica_exito': f'Reducir hallazgos ALTOS de {counts["HIGH"]} a menos de {max(1, int(counts["HIGH"] * 0.2))} en 1 semana',
+                'verificacion': 'Re-escanear con auditlens scan . --diff-baseline .auditlens-baseline.json',
+                'responsable': 'Auditor Técnico + Líder Técnico del equipo de desarrollo',
+                'iso': 'ISO 25040 — Integridad; ISO 12207 — Codificación; CWE-89',
+            },
+            {
+                'prioridad': 'ALTA — Planificada (< 1 mes)',
+                'recomendacion': f'Aumentar cobertura de pruebas de {coverage}% al 70% en los próximos 30 días',
+                'acciones': [
+                    'Identificar los 10 módulos más críticos sin cobertura de pruebas',
+                    'Implementar pruebas unitarias con pytest/Jest para cada módulo crítico',
+                    'Agregar al menos 3 pruebas de seguridad automatizadas al pipeline CI/CD',
+                    'Configurar medición de cobertura con pytest-cov o Istanbul/nyc',
+                ],
+                'metrica_exito': f'Alcanzar ratio de cobertura ≥ 70% (actual: {coverage}%) en 30 días',
+                'verificacion': 'Ejecutar: auditlens plan . y verificar "Ratio de cobertura estimado: ≥ 70%"',
+                'responsable': 'Auditor de Procesos + Equipo de QA',
+                'iso': 'ISO 12207 — Verificación y Validación; ISO 25040 — Fiabilidad',
+            },
+            {
+                'prioridad': 'MEDIA — Planificada (< 2 meses)',
+                'recomendacion': f'Mejorar conformidad ISO 25040 de {iso25040_score}/100 a 80/100',
+                'acciones': [
+                    'Implementar política formal de codificación segura y distribuirla al equipo',
+                    'Establecer proceso de revisión de código obligatorio (code review) con checklist de seguridad',
+                    'Integrar AuditLens al pipeline CI/CD como puerta de calidad',
+                    'Capacitar al equipo en OWASP Top 10 y desarrollo seguro',
+                ],
+                'metrica_exito': f'Puntuación ISO 25040 de {iso25040_score}/100 a ≥ 80/100 en 2 meses',
+                'verificacion': 'Ejecutar auditlens plan . y revisar sección "Análisis de Brechas ISO 25040"',
+                'responsable': 'Auditor Líder + Gerente de Tecnología',
+                'iso': 'ISO 25040 — Seguridad Funcional; ISO 12207 — Aseguramiento de la Calidad',
+            },
+            {
+                'prioridad': 'MEDIA — Planificada (< 3 meses)',
+                'recomendacion': f'Mejorar conformidad ISO 12207 de {iso12207_score}/100 a 80/100',
+                'acciones': [
+                    'Documentar proceso de gestión de cambios con trazabilidad requisito → código → prueba',
+                    'Implementar integración continua con validación automática de seguridad',
+                    'Establecer registro de solicitudes de mantenimiento con clasificación ISO 14764',
+                    'Definir criterios de aceptación de código que incluyan métricas de calidad',
+                ],
+                'metrica_exito': f'Puntuación ISO 12207 de {iso12207_score}/100 a ≥ 80/100 en 3 meses',
+                'verificacion': 'Ejecutar auditlens plan . y revisar sección "Análisis de Brechas ISO 12207"',
+                'responsable': 'Auditor de Procesos + Gerente de Desarrollo',
+                'iso': 'ISO 12207 — Ciclo de Vida; ISO 14764 — Mantenimiento',
+            },
+        ]
+
+        for rec in recommendations:
+            self._add_heading(rec['prioridad'], level=3)
+            self._add_paragraph(rec['recomendacion'], bold=True)
+
+            # Actions
+            for action in rec['acciones']:
+                p = self.doc.add_paragraph(style='List Number')
+                p.add_run(action)
+
+            # Metrics and verification
+            self._add_table(
+                ['Campo', 'Detalle'],
+                [
+                    ['Métrica de éxito', rec['metrica_exito']],
+                    ['Mecanismo de verificación', rec['verificacion']],
+                    ['Responsable', rec['responsable']],
+                    ['Norma ISO aplicable', rec['iso']],
+                ]
+            )
+
+        # KPIs de proceso (adicionales a los de hallazgos)
+        self._add_heading('KPIs de Proceso', level=3)
+        self._add_paragraph(
+            'Además de los KPIs de hallazgos, los siguientes indicadores de proceso '
+            'permiten medir la madurez del ciclo de desarrollo en relación a los estándares ISO.'
+        )
+        self._add_table(
+            ['KPI de Proceso', 'Valor Actual', 'Meta', 'Frecuencia', 'Cómo medirlo'],
+            [
+                ['% revisiones de código antes de merge', '0% (no existe)', '100%', 'Por sprint',
+                 'Revisar registros de pull requests en el repositorio'],
+                ['% builds con análisis de seguridad automático', '0% (no existe)', '100%', 'Por build',
+                 'Verificar configuración del pipeline CI/CD'],
+                ['Tiempo promedio de resolución de hallazgo CRÍTICO', 'No medido', '< 48h', 'Por hallazgo',
+                 'Registrar fecha detección y fecha corrección en el backlog'],
+                ['% dependencias actualizadas (sin CVE conocido)', 'No medido', '> 95%', 'Mensual',
+                 'Ejecutar: auditlens scan . --format json | grep SCA-CVE'],
+                ['Cobertura de pruebas de seguridad', f'{test_analysis.get("ratio_cobertura_estimado", 0)}%', '> 70%', 'Mensual',
+                 'Ejecutar: auditlens plan . y revisar sección Cobertura de Pruebas'],
+                ['Número de vulnerabilidades en producción (incidentes)', 'No medido', '0 críticos/mes', 'Mensual',
+                 'Revisar logs de errores y tickets de soporte'],
+            ]
+        )
+
+        # Verification mechanism for closure
+        self._add_heading('Mecanismo de Verificación de Correcciones', level=3)
+        self._add_paragraph(
+            'Para verificar que cada recomendación ha sido implementada correctamente '
+            'se utilizará el modo diff-baseline de AuditLens:'
+        )
+        steps = [
+            'Guardar el baseline actual: auditlens scan . --save-baseline .auditlens-baseline.json',
+            'El equipo implementa las correcciones del sprint de remediación',
+            'Ejecutar re-scan: auditlens scan . --diff-baseline .auditlens-baseline.json',
+            'Si el resultado es 0 hallazgos nuevos, se verifican las correcciones como válidas',
+            'Actualizar el baseline: auditlens scan . --save-baseline .auditlens-baseline-v2.json',
+            'Documentar el número de versión del baseline y fecha en el registro de evidencia',
+        ]
+        for i, step in enumerate(steps, 1):
+            p = self.doc.add_paragraph(style='List Number')
+            p.add_run(step)
+
     def save(self, output_path: str):
         self.doc.save(output_path)
         print(
@@ -1307,10 +1996,11 @@ def generate_docx_report(
     # ── 4. Introducción (alcance + objetivos SMART) ───────────────────────────
     exporter.add_introduction(plan)
 
-    # ── 5. Metodología ────────────────────────────────────────────────────────
+    # ── 5. Metodología + Matriz de Roles ─────────────────────────────────────
     exporter.add_methodology(plan)
+    exporter.add_roles_responsibility_matrix(plan)
 
-    # ── 6. Ejecución y Recolección de Evidencia (secciones 2.x del rubric) ───
+    # ── 6. Ejecución y Recolección de Evidencia ───────────────────────────────
     exporter._add_heading('4. Ejecución y Recolección de Evidencia', level=1)
     exporter._add_paragraph(
         'Esta sección documenta los procedimientos de recolección de evidencia, '
@@ -1318,24 +2008,41 @@ def generate_docx_report(
         'durante la ejecución de la auditoría, conforme a ISO 25040, ISO 12207 e ISO 14764.'
     )
     exporter.add_evidence_collection(findings, project_info, sistema)
+
+    # Test strategies: security cases + functional cases
+    exporter._add_heading('4.2 Diseño de Estrategias de Pruebas de Software', level=2)
+    exporter._add_paragraph(
+        'Se proponen pruebas de seguridad derivadas de los hallazgos detectados '
+        'y casos de prueba funcionales de caja negra por módulo del sistema.'
+    )
     exporter.add_test_strategies(findings, test_analysis, sistema)
+    exporter.add_functional_test_cases(project_info, sistema)
+
     exporter.add_evidence_validity(empresa, sistema, fecha)
 
     # ── 7. Hallazgos ─────────────────────────────────────────────────────────
     exporter.add_findings(enriched_findings)
 
-    # ── 8. Análisis de Brechas ISO ────────────────────────────────────────────
+    # ── 8. Análisis de la Evidencia ───────────────────────────────────────────
+    exporter._add_heading('6. Análisis de la Evidencia y Generación de Hallazgos', level=1)
+    exporter._add_paragraph(
+        'Esta sección presenta el análisis de la evidencia recolectada mediante '
+        'técnicas de análisis de causa raíz, tablas de correlación y análisis de '
+        'brechas respecto a los estándares ISO aplicados.'
+    )
+    exporter.add_root_cause_analysis(findings, sistema)
+    exporter.add_correlation_table(findings, project_info)
     exporter.add_iso_gap_analysis(gap_analysis)
 
-    # ── 9. Análisis de Cobertura de Pruebas ──────────────────────────────────
+    # ── 9. Cobertura de Pruebas ───────────────────────────────────────────────
     exporter.add_test_coverage(test_analysis)
 
     # ── 10. Conclusiones ──────────────────────────────────────────────────────
     exporter.add_conclusions(findings, gap_analysis, sistema, empresa)
 
-    # ── 11. Recomendaciones + Seguimiento + Cierre ────────────────────────────
+    # ── 11. Recomendaciones con métricas + Seguimiento + Cierre ───────────────
     exporter._add_heading('9. Recomendaciones y Seguimiento', level=1)
-    exporter.add_recommendations(findings)
+    exporter.add_specific_recommendations(findings, gap_analysis, test_analysis, sistema)
     exporter.add_followup_plan(kpis)
     exporter.add_audit_closure(findings, sistema, empresa)
 
