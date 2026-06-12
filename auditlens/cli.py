@@ -134,6 +134,10 @@ def main():
     fp.add_argument('--rule', default=None, help='Limitar a un rule_id específico.')
     fp.add_argument('--output', '-o', default=None, help='Guardar sugerencias en JSON.')
     fp.add_argument('--no-sca', dest='no_sca', action='store_true')
+    fp.add_argument('--apply', action='store_true',
+                    help='Aplicar parches directamente al código fuente (usa Claude para generar diffs).')
+    fp.add_argument('--dry-run', dest='dry_run', action='store_true',
+                    help='Simular aplicación de parches sin modificar archivos (requiere --apply).')
 
     # ── multi-scan ────────────────────────────────────────────────────────────
     msp = subparsers.add_parser('multi-scan', help='Escanear múltiples proyectos y mostrar resumen unificado.')
@@ -315,6 +319,15 @@ def main():
         help='No abrir browser automáticamente con --serve.',
     )
 
+    # ── compliance ────────────────────────────────────────────────────────────
+    comp_p = subparsers.add_parser(
+        'compliance',
+        help='Generar reporte de compliance (OWASP, CWE, PCI-DSS, SOC 2) a partir de hallazgos JSON.',
+    )
+    comp_p.add_argument('findings', help='Archivo JSON de hallazgos (output de auditlens scan --format json).')
+    comp_p.add_argument('--format', choices=['text', 'html', 'json'], default='text')
+    comp_p.add_argument('--output', '-o', default=None)
+
     # ── archaeology ───────────────────────────────────────────────────────────
     archp = subparsers.add_parser(
         'archaeology',
@@ -483,6 +496,9 @@ def main():
     elif args.command == 'graph':
         _run_graph_command(args)
 
+    elif args.command == 'compliance':
+        _run_compliance_command(args)
+
     elif args.command == 'archaeology':
         _run_archaeology_command(args)
 
@@ -583,8 +599,15 @@ def _run_fix_command(args):
                     analyze_file(os.path.join(dirpath, fname), rules_engine, taint_analyzer,
                                  min_severity=args.severity, all_findings_accumulator=findings_acc)
 
-    run_ai_fix(findings_acc, min_severity=args.severity, rule_filter=args.rule,
-               output_path=args.output)
+    run_ai_fix(
+        findings_acc,
+        min_severity=args.severity,
+        rule_filter=args.rule,
+        output_path=args.output,
+        apply_patches=getattr(args, 'apply', False),
+        dry_run=getattr(args, 'dry_run', False),
+        project_root=args.path if os.path.isdir(args.path) else os.path.dirname(args.path),
+    )
 
 
 def _run_plan_command(args):
@@ -876,6 +899,110 @@ def _run_graph_command(args):
     print(f'  Nodos tainted:   {stats["tainted_nodes"]}')
     print(f'  CRITICAL: {sev["CRITICAL"]}  HIGH: {sev["HIGH"]}  MEDIUM: {sev["MEDIUM"]}  LOW: {sev["LOW"]}')
     sys.exit(1 if sev['CRITICAL'] + sev['HIGH'] > 0 else 0)
+
+
+def _run_compliance_command(args):
+    """Execute 'auditlens compliance' — map findings to OWASP/CWE/PCI-DSS/SOC 2."""
+    import json as _json
+    from .compliance_mapper import enrich_with_compliance, generate_compliance_report, print_compliance_summary
+
+    with open(args.findings, encoding='utf-8') as fh:
+        findings = _json.load(fh)
+
+    findings = enrich_with_compliance(findings)
+    report   = generate_compliance_report(findings)
+
+    fmt = getattr(args, 'format', 'text')
+    out = getattr(args, 'output', None)
+
+    if fmt == 'json' or (out and out.endswith('.json')):
+        json_out = out or 'compliance_report.json'
+        with open(json_out, 'w', encoding='utf-8') as fh:
+            _json.dump(report, fh, indent=2)
+        print(f'\033[92m[AuditLens Compliance]\033[0m JSON guardado: {json_out}')
+    elif fmt == 'html' or (out and out.endswith('.html')):
+        _generate_compliance_html(report, findings, out or 'compliance_report.html')
+    else:
+        print_compliance_summary(report)
+
+    sys.exit(0)
+
+
+def _generate_compliance_html(report: dict, findings: list, output_path: str) -> None:
+    """Generate standalone HTML compliance gap report."""
+    import json as _json
+
+    def _gauge(pct, label):
+        color = '#3fb950' if pct >= 60 else '#e3b341' if pct >= 30 else '#da3633'
+        return f'''<div class="gauge-wrap">
+          <svg viewBox="0 0 100 60" class="gauge">
+            <path d="M10,55 A40,40 0 0,1 90,55" fill="none" stroke="#21262d" stroke-width="10"/>
+            <path d="M10,55 A40,40 0 0,1 90,55" fill="none" stroke="{color}" stroke-width="10"
+              stroke-dasharray="{pct*1.257} 125.7" stroke-linecap="round"/>
+            <text x="50" y="52" text-anchor="middle" fill="{color}" font-size="18" font-weight="bold">{pct}%</text>
+          </svg>
+          <div class="gauge-label">{label}</div>
+        </div>'''
+
+    gauges = (
+        _gauge(report['owasp']['pct'],   'OWASP Top 10') +
+        _gauge(report['pci_dss']['pct'], 'PCI-DSS v4.0') +
+        _gauge(report['soc2']['pct'],    'SOC 2 TSC')
+    )
+
+    def _fw_table(fw_data, code_names):
+        rows = ''
+        for code in sorted(fw_data.get('covered', [])):
+            count = fw_data.get('details', {}).get(code, {})
+            n = count.get('count', count) if isinstance(count, dict) else count
+            rows += f'<tr><td class="code">{code}</td><td>{code_names.get(code, "")}</td><td style="color:#3fb950">{n} hallazgo(s)</td><td>✓</td></tr>'
+        for code in sorted(fw_data.get('uncovered', [])):
+            rows += f'<tr><td class="code" style="color:#6e7681">{code}</td><td style="color:#6e7681">{code_names.get(code, "")}</td><td style="color:#6e7681">—</td><td style="color:#6e7681">○</td></tr>'
+        return rows
+
+    from .compliance_mapper import _OWASP_NAMES, _PCI_NAMES, _SOC2_NAMES
+    html = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8">
+<title>AuditLens — Compliance Report</title>
+<style>
+* {{ box-sizing: border-box; margin:0; padding:0; }}
+body {{ font-family:'Segoe UI',system-ui,sans-serif; background:#0d1117; color:#e6edf3; padding:24px; }}
+h1 {{ color:#58a6ff; font-size:20px; margin-bottom:4px; }}
+.sub {{ color:#8b949e; font-size:12px; margin-bottom:24px; }}
+h2 {{ color:#58a6ff; font-size:13px; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }}
+.gauges {{ display:flex; gap:32px; justify-content:center; margin-bottom:28px; }}
+.gauge-wrap {{ text-align:center; }}
+.gauge {{ width:140px; }}
+.gauge-label {{ font-size:12px; color:#8b949e; margin-top:4px; }}
+.section {{ background:#161b22; border:1px solid #30363d; border-radius:8px; padding:20px; margin-bottom:16px; }}
+table {{ width:100%; border-collapse:collapse; font-size:12px; }}
+th {{ text-align:left; padding:8px; color:#8b949e; border-bottom:1px solid #30363d; font-size:11px; text-transform:uppercase; }}
+td {{ padding:7px 8px; border-bottom:1px solid #21262d; }}
+.code {{ font-family:monospace; color:#79c0ff; }}
+</style></head>
+<body>
+<h1>🔒 Compliance Coverage Report</h1>
+<p class="sub">{len(findings)} hallazgos analizados</p>
+<div class="gauges">{gauges}</div>
+<div class="section"><h2>OWASP Top 10 (2021)</h2>
+<table><thead><tr><th>ID</th><th>Categoría</th><th>Hallazgos</th><th>Estado</th></tr></thead>
+<tbody>{_fw_table(report['owasp'], _OWASP_NAMES)}</tbody></table></div>
+<div class="section"><h2>PCI-DSS v4.0</h2>
+<table><thead><tr><th>Req.</th><th>Descripción</th><th>Hallazgos</th><th>Estado</th></tr></thead>
+<tbody>{_fw_table(report['pci_dss'], _PCI_NAMES)}</tbody></table></div>
+<div class="section"><h2>SOC 2 — Trust Service Criteria</h2>
+<table><thead><tr><th>Criterio</th><th>Descripción</th><th>Hallazgos</th><th>Estado</th></tr></thead>
+<tbody>{_fw_table(report['soc2'], _SOC2_NAMES)}</tbody></table></div>
+<div class="section"><h2>CWE identificados ({len(report['cwe']['covered'])})</h2>
+<p style="font-size:12px;color:#8b949e">{', '.join(sorted(report['cwe']['covered']))}</p>
+</div></body></html>"""
+
+    with open(output_path, 'w', encoding='utf-8') as fh:
+        fh.write(html)
+    print(f'\033[92m[AuditLens Compliance]\033[0m HTML generado: {output_path}')
+    import webbrowser, os
+    webbrowser.open(f'file://{os.path.abspath(output_path)}')
 
 
 def _run_archaeology_command(args):

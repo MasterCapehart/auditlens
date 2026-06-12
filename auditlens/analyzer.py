@@ -213,7 +213,15 @@ def analyze_file(
         if parser:
             findings.extend(_ast_scan(file_path, code_text.encode('utf-8'), parser))
 
-    # ── 4. Filter, print, accumulate ─────────────────────────────────────────
+    # ── 4. Entropy-based secret detection ────────────────────────────────────
+    if 'ENTROPY-BASE64' not in disabled and 'ENTROPY-HEX' not in disabled:
+        try:
+            from .entropy_scanner import scan_file_for_secrets
+            findings.extend(scan_file_for_secrets(file_path))
+        except Exception:
+            pass
+
+    # ── 5. Filter, print, accumulate ─────────────────────────────────────────
     for finding in findings:
         rank = _SEVERITY_RANK.get(finding['severity'].upper(), 0)
         if rank < min_rank:
@@ -380,6 +388,19 @@ def run_static_analysis(
         except Exception as exc:
             print(f'\033[93m[AuditLens] Inter-procedural taint warning: {exc}\033[0m')
 
+    # ── Suppression (.auditlens-ignore + inline + security-tool whitelist) ──────
+    try:
+        from .suppression import filter_suppressed
+        project_root = path if os.path.isdir(path) else os.path.dirname(path)
+        all_findings, suppressed = filter_suppressed(all_findings, project_root)
+        if suppressed:
+            print(
+                f'\033[90m[AuditLens] {len(suppressed)} hallazgo(s) suprimido(s) '
+                f'(# auditlens: ignore / .auditlens-ignore / whitelist)\033[0m'
+            )
+    except Exception:
+        pass
+
     # ── Baseline / diff (T1-2) ────────────────────────────────────────────────
     reported_findings = all_findings
 
@@ -399,6 +420,13 @@ def run_static_analysis(
                     f'{len(new_findings)} new.\033[0m'
                 )
             reported_findings = new_findings
+
+    # ── Compliance enrichment ─────────────────────────────────────────────────
+    try:
+        from .compliance_mapper import enrich_with_compliance
+        reported_findings = enrich_with_compliance(reported_findings)
+    except Exception:
+        pass
 
     # ── Summary ───────────────────────────────────────────────────────────────
     counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}

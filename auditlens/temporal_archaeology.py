@@ -265,6 +265,22 @@ def _extract_events_from_diff(
             continue
 
         code = line[1:]
+
+        # Skip lines that are purely comments, docstrings, or string literals
+        # (not executable code — avoids false positives from audit report snippets)
+        stripped = code.strip()
+        if stripped.startswith('#'):
+            continue
+        if stripped.startswith('//') or stripped.startswith('*') or stripped.startswith('/*'):
+            continue
+        # Skip lines inside docstrings/multi-line strings (heuristic: pure string content)
+        if stripped.startswith(("'", '"')) and not re.search(r'\w+\s*[=:(]', stripped):
+            continue
+        # Skip lines that are clearly dict/list values from report data structures
+        # (e.g. "'DESER-01': 'Replace...'" pattern — key:value string pairs)
+        if re.match(r"""^\s*['"][^'"]{1,40}['"]\s*:\s*['"]""", code):
+            continue
+
         for pattern, rule_id, rule_name, severity in _COMPILED:
             if pattern.search(code):
                 events.append(VulnEvent(

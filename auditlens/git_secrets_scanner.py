@@ -35,6 +35,62 @@ _SECRET_PATTERNS = [
 
 _COMPILED = [(re.compile(p), name, sev) for p, name, sev in _SECRET_PATTERNS]
 
+# ── Shannon entropy scanner ────────────────────────────────────────────────────
+import math
+
+_ENTROPY_CHARSETS = [
+    ('BASE64', set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=')),
+    ('HEX',    set('0123456789abcdefABCDEF')),
+]
+_ENTROPY_MIN_LEN = 20      # minimum token length to check
+_ENTROPY_THRESHOLD = {
+    'BASE64': 4.5,          # high-entropy base64 — likely a secret
+    'HEX':    3.5,          # high-entropy hex string
+}
+# Patterns that surround secret values (assignment or JSON key)
+_ENTROPY_CONTEXT_RE = re.compile(
+    r'(?i)(?:secret|token|key|password|passwd|pwd|auth|credential|api[_-]?key|'
+    r'private[_-]?key|access[_-]?key|signing[_-]?secret)\s*[:=]\s*["\']?([A-Za-z0-9+/=_\-]{20,})["\']?'
+)
+
+
+def _shannon_entropy(s: str, charset: set) -> float:
+    """Calculate Shannon entropy of a string over a given character set."""
+    s_filtered = [c for c in s if c in charset]
+    if len(s_filtered) < _ENTROPY_MIN_LEN:
+        return 0.0
+    freq: dict = {}
+    for c in s_filtered:
+        freq[c] = freq.get(c, 0) + 1
+    total = len(s_filtered)
+    return -sum((n / total) * math.log2(n / total) for n in freq.values())
+
+
+def _scan_line_entropy(line: str) -> Optional[tuple]:
+    """
+    Scan a single source line for high-entropy strings in secret-like context.
+    Returns (name, severity, token) or None.
+    """
+    # Only check lines that look like assignments with a potentially secret value
+    m = _ENTROPY_CONTEXT_RE.search(line)
+    if not m:
+        return None
+
+    token = m.group(1)
+    if len(token) < _ENTROPY_MIN_LEN:
+        return None
+
+    for charset_name, charset in _ENTROPY_CHARSETS:
+        entropy = _shannon_entropy(token, charset)
+        threshold = _ENTROPY_THRESHOLD.get(charset_name, 4.0)
+        if entropy >= threshold:
+            return (
+                f'High-Entropy Secret ({charset_name}, H={entropy:.2f})',
+                'CRITICAL',
+                token[:40],
+            )
+    return None
+
 
 def _run_git(args: List[str], cwd: str, timeout: int = 60) -> str:
     try:
@@ -87,6 +143,8 @@ def scan_git_history(
             current_file = line[6:]
         elif line.startswith('+') and not line.startswith('+++'):
             added_line = line[1:]
+
+            # --- Pattern-based detection ---
             for pattern, name, severity in _COMPILED:
                 m = pattern.search(added_line)
                 if m:
@@ -112,6 +170,33 @@ def scan_git_history(
                         'commit_date': current_date[:10],
                         'commit_msg': current_msg[:100],
                         'source': 'GIT-HISTORY',
+                    })
+
+            # --- Entropy-based detection (catches unknown secret formats) ---
+            entropy_hit = _scan_line_entropy(added_line)
+            if entropy_hit:
+                ename, esev, etoken = entropy_hit
+                dedup_key = f'{current_commit}:{current_file}:entropy:{etoken[:16]}'
+                if dedup_key not in seen:
+                    seen.add(dedup_key)
+                    findings.append({
+                        'rule_id': 'GIT-ENTROPY-SECRET',
+                        'name': f'Secret in Git History: {ename}',
+                        'description': (
+                            f'High-entropy string detected in commit {current_commit[:8]} '
+                            f'({current_date[:10]}) in {current_file}. '
+                            f'Token preview: "{etoken}…". '
+                            'This pattern suggests a credential, API key, or signing secret. '
+                            'Verify and rotate if sensitive. Consider git history rewrite.'
+                        ),
+                        'severity': esev,
+                        'compliance': ['CWE-312', 'CWE-798', 'OWASP-A2:2021'],
+                        'file': current_file,
+                        'line': 0,
+                        'commit': current_commit,
+                        'commit_date': current_date[:10],
+                        'commit_msg': current_msg[:100],
+                        'source': 'GIT-ENTROPY',
                     })
 
     counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
