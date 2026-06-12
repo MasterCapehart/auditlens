@@ -26,8 +26,11 @@ _PARSER_CACHE: Dict[str, object] = {}
 
 _SUPPORTED_EXTENSIONS = {
     '.py', '.js', '.jsx', '.ts', '.tsx', '.swift',
-    '.go', '.java', '.kt', '.rb',
+    '.go', '.java', '.kt', '.rb', '.php',
+    '.tf', '.hcl', '.yaml', '.yml',
 }
+
+_IAC_ONLY_FILENAMES = {'dockerfile', 'docker-compose.yml', 'docker-compose.yaml'}
 
 _SEVERITY_RANK = {'LOW': 0, 'MEDIUM': 1, 'HIGH': 2, 'CRITICAL': 3}
 
@@ -167,7 +170,6 @@ def analyze_file(
                 return []
 
     ext = os.path.splitext(file_path)[1].lower()
-    rules = rules_engine.get_rules_for_language(ext)
     min_rank = _SEVERITY_RANK.get(min_severity.upper(), 0)
     disabled = set(disabled_rules or [])
 
@@ -180,6 +182,8 @@ def analyze_file(
         return []
 
     findings: List[dict] = []
+
+    rules = rules_engine.get_rules_for_language(ext, filename=file_path)
 
     # ── 1. YAML regex rules ───────────────────────────────────────────────────
     for rule in rules:
@@ -239,6 +243,8 @@ def run_static_analysis(
     export_pdf: bool = False,
     export_json: bool = False,
     export_docx: bool = False,
+    export_html: bool = False,
+    export_xlsx: bool = False,
     output_path: Optional[str] = None,
     min_severity: str = 'LOW',
     run_sca: bool = True,
@@ -250,6 +256,9 @@ def run_static_analysis(
     sistema: str = 'Sistema de Software',
     auditor: str = '[Auditor por asignar]',
     trimestre: str = 'primer trimestre de 2025',
+    ai_fix: bool = False,
+    ai_fix_severity: str = 'HIGH',
+    ai_fix_output: Optional[str] = None,
 ) -> int:
     """
     Run full analysis. Returns exit code:
@@ -328,19 +337,22 @@ def run_static_analysis(
 
     if os.path.isfile(path):
         ext = os.path.splitext(path)[1].lower()
-        if ext in _SUPPORTED_EXTENSIONS:
+        base = os.path.basename(path).lower()
+        if ext in _SUPPORTED_EXTENSIONS or base.startswith('dockerfile'):
             analyze_file(path, **common_kwargs)
     elif os.path.isdir(path):
         exclude_dirs = {
-            'venv', 'env', '.env', '.venv',  # virtual environments (with and without dot)
+            'venv', 'env', '.env', '.venv',
             '.git', '__pycache__',
             'node_modules', 'build', 'dist', '.tox',
-            'site-packages', 'lib', 'bin', 'include',  # inside venvs
+            'site-packages', 'lib', 'bin', 'include',
         }
         for root, dirs, files in os.walk(path):
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
             for fname in files:
-                if os.path.splitext(fname)[1].lower() in _SUPPORTED_EXTENSIONS:
+                ext = os.path.splitext(fname)[1].lower()
+                base = fname.lower()
+                if ext in _SUPPORTED_EXTENSIONS or base.startswith('dockerfile'):
                     analyze_file(os.path.join(root, fname), **common_kwargs)
 
     # ── Inter-procedural taint (optional, Python only) ────────────────────────
@@ -404,6 +416,14 @@ def run_static_analysis(
         f"\033[90mLOW:{counts['LOW']}\033[0m)"
     )
 
+    # ── Risk table ────────────────────────────────────────────────────────────
+    if reported_findings:
+        try:
+            from .risk_scorer import print_risk_table
+            print_risk_table(reported_findings)
+        except Exception:
+            pass
+
     # ── Export ────────────────────────────────────────────────────────────────
     if sarif_exporter:
         sarif_exporter.export(output_path or 'audit_results.sarif')
@@ -437,6 +457,36 @@ def run_static_analysis(
                 '\033[93m[AuditLens]\033[0m python-docx no instalado. '
                 'Instala con: pip install python-docx --break-system-packages'
             )
+
+    # HTML report
+    if export_html:
+        html_path = output_path or 'audit_report.html'
+        try:
+            from .html_exporter import generate_html_report
+            generate_html_report(reported_findings, scan_path=path, output_path=html_path)
+        except Exception as exc:
+            print(f'\033[93m[AuditLens]\033[0m HTML export error: {exc}')
+
+    # Excel report
+    if export_xlsx:
+        xlsx_path = output_path or 'audit_report.xlsx'
+        try:
+            from .xlsx_exporter import generate_xlsx_report
+            generate_xlsx_report(reported_findings, scan_path=path, output_path=xlsx_path)
+        except Exception as exc:
+            print(f'\033[93m[AuditLens]\033[0m XLSX export error: {exc}')
+
+    # AI fix suggestions
+    if ai_fix and reported_findings:
+        try:
+            from .ai_fix import run_ai_fix
+            run_ai_fix(
+                reported_findings,
+                min_severity=ai_fix_severity,
+                output_path=ai_fix_output,
+            )
+        except Exception as exc:
+            print(f'\033[93m[AuditLens]\033[0m AI fix error: {exc}')
 
     # Persist history
     if record_history and all_findings is not None:

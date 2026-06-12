@@ -73,7 +73,7 @@ class RulesEngine:
 
         print(f"\033[90m[AuditLens] Loaded {len(self.rules)} rules.\033[0m")
 
-    def get_rules_for_language(self, ext: str) -> List[Rule]:
+    def get_rules_for_language(self, ext: str, filename: str = '') -> List[Rule]:
         ext_to_lang = {
             '.py':   'python',
             '.js':   'javascript',
@@ -85,8 +85,25 @@ class RulesEngine:
             '.java': 'java',
             '.kt':   'kotlin',
             '.rb':   'ruby',
+            '.php':  'php',
+            '.tf':   'terraform',
+            '.hcl':  'terraform',
         }
-        lang = ext_to_lang.get(ext)
+        # IaC: YAML files need filename-based disambiguation
+        if ext in ('.yaml', '.yml'):
+            base = os.path.basename(filename).lower()
+            if 'docker-compose' in base or 'compose' in base:
+                lang = 'yaml_compose'
+            elif any(k in base for k in ('deployment', 'service', 'pod', 'ingress',
+                                          'configmap', 'k8s', 'kube', 'statefulset')):
+                lang = 'yaml_k8s'
+            else:
+                lang = None
+        elif filename and os.path.basename(filename).lower().startswith('dockerfile'):
+            lang = 'dockerfile'
+        else:
+            lang = ext_to_lang.get(ext)
+
         if not lang:
             return []
         return [r for r in self.rules if lang in r.languages]

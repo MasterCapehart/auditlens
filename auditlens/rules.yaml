@@ -926,3 +926,373 @@ rules:
     regex_pattern: "USER\\s+root"
     compliance: ["CWE-250", "Docker CIS Benchmark 4.1"]
     severity: "MEDIUM"
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # PHP RULES
+  # ══════════════════════════════════════════════════════════════════════════════
+
+  - id: "PHP-01-SQL-INJECTION"
+    name: "PHP: Potential SQL Injection"
+    description: >
+      String concatenation used to build SQL queries in PHP. Use PDO with
+      prepared statements and parameterized queries instead.
+    languages: ["php"]
+    regex_pattern: "(?i)(?:mysql_query|mysqli_query|\\$(?:pdo|db|conn|connection|mysqli)\\s*->\\s*query)\\s*\\([^)]*(?:\\$_(?:GET|POST|REQUEST|COOKIE|SERVER)|\\$[a-z_]+\\s*\\.)"
+    compliance: ["OWASP-A3:2021", "CWE-89", "PCI-DSS 6.3.1"]
+    severity: "CRITICAL"
+
+  - id: "PHP-02-HARDCODED-CREDENTIALS"
+    name: "PHP: Hardcoded Database Credentials"
+    description: >
+      Database username or password hardcoded directly in PHP source code.
+      Use environment variables or a secrets manager instead.
+    languages: ["php"]
+    regex_pattern: "(?i)\\$(?:pass|password|passwd|db_pass|db_password|dbpass)\\s*=\\s*['\"][^'\"]*['\"]"
+    compliance: ["OWASP-A7:2021", "CWE-798", "ISO-27001:A.9"]
+    severity: "HIGH"
+
+  - id: "PHP-03-HARDCODED-DB-USER-ROOT"
+    name: "PHP: Database Connection as Root User"
+    description: >
+      Connecting to the database as 'root' with no or empty password.
+      Create a dedicated low-privilege database user for the application.
+    languages: ["php"]
+    regex_pattern: "(?i)(?:new\\s+PDO|mysqli_connect|mysql_connect)\\s*\\([^)]*['\"]root['\"]"
+    compliance: ["OWASP-A7:2021", "CWE-798", "PCI-DSS 8.2"]
+    severity: "CRITICAL"
+
+  - id: "PHP-04-ERROR-INFORMATION-DISCLOSURE"
+    name: "PHP: Error Message Information Disclosure"
+    description: >
+      Exception or error details exposed directly to the user via die() or echo.
+      Log errors server-side and show a generic message to users.
+    languages: ["php"]
+    regex_pattern: "(?i)die\\s*\\(\\s*['\"].*(?:Error|error|Exception|exception|conexi|connect|mysql|database)"
+    compliance: ["OWASP-A5:2021", "CWE-209"]
+    severity: "HIGH"
+
+  - id: "PHP-05-XSS-ECHO-USER-INPUT"
+    name: "PHP: Potential XSS — Unescaped Output"
+    description: >
+      User-supplied data (from $_GET, $_POST, $_REQUEST, $_COOKIE) echoed
+      without htmlspecialchars() or htmlentities() allows Cross-Site Scripting.
+    languages: ["php"]
+    regex_pattern: "(?i)(?:echo|print)\\s+(?!htmlspecialchars|htmlentities).*\\$_(?:GET|POST|REQUEST|COOKIE)\\["
+    compliance: ["OWASP-A3:2021", "CWE-79"]
+    severity: "HIGH"
+
+  - id: "PHP-06-COMMAND-INJECTION"
+    name: "PHP: Potential Command Injection"
+    description: >
+      Shell execution functions (system, exec, passthru, shell_exec, backticks)
+      called with user-controlled input allow arbitrary command execution.
+    languages: ["php"]
+    regex_pattern: "(?i)(?:system|exec|passthru|shell_exec|popen|proc_open)\\s*\\([^)]*\\$_(?:GET|POST|REQUEST|COOKIE|SERVER)"
+    compliance: ["OWASP-A3:2021", "CWE-78"]
+    severity: "CRITICAL"
+
+  - id: "PHP-07-FILE-INCLUSION"
+    name: "PHP: Remote/Local File Inclusion"
+    description: >
+      include() or require() with user-controlled input allows attackers to
+      include arbitrary local or remote files (LFI/RFI).
+    languages: ["php"]
+    regex_pattern: "(?i)(?:include|require|include_once|require_once)\\s*(?:\\()?\\s*\\$_(?:GET|POST|REQUEST|COOKIE)"
+    compliance: ["OWASP-A1:2021", "CWE-98"]
+    severity: "CRITICAL"
+
+  - id: "PHP-08-WEAK-HASHING"
+    name: "PHP: Weak Password Hashing (MD5/SHA1)"
+    description: >
+      MD5 and SHA1 are not suitable for password hashing. Use password_hash()
+      with PASSWORD_DEFAULT (bcrypt) or PASSWORD_ARGON2ID.
+    languages: ["php"]
+    regex_pattern: "(?i)(?:md5|sha1)\\s*\\("
+    compliance: ["OWASP-A2:2021", "CWE-327", "PCI-DSS 6.3.3"]
+    severity: "HIGH"
+
+  - id: "PHP-09-CSRF-NO-TOKEN"
+    name: "PHP: Missing CSRF Token in Form"
+    description: >
+      HTML forms with POST method do not include a CSRF token field.
+      Implement synchronizer token pattern or SameSite cookie attribute.
+    languages: ["php"]
+    regex_pattern: "(?i)<form[^>]*method\\s*=\\s*['\"]post['\"][^>]*>(?:(?!</form>).)*?<\\/form>"
+    compliance: ["OWASP-A1:2021", "CWE-352"]
+    severity: "HIGH"
+
+  - id: "PHP-10-SESSION-NO-HTTPONLY"
+    name: "PHP: Session Cookie Without HttpOnly/Secure Flags"
+    description: >
+      session_start() without configuring session.cookie_httponly and
+      session.cookie_secure exposes the session cookie to XSS and network attacks.
+    languages: ["php"]
+    regex_pattern: "(?i)session_start\\s*\\(\\s*\\)"
+    compliance: ["OWASP-A2:2021", "CWE-614", "PCI-DSS 6.2.4"]
+    severity: "MEDIUM"
+
+  - id: "PHP-11-WEAK-PASSWORD-POLICY"
+    name: "PHP: Weak Password Minimum Length Policy"
+    description: >
+      Password minimum length of 4 characters is insufficient. NIST SP 800-63B
+      recommends a minimum of 8 characters for user-generated passwords.
+    languages: ["php"]
+    regex_pattern: "(?i)strlen\\s*\\(\\s*\\$password\\s*\\)\\s*(?:>=|>)\\s*[1-4](?![0-9])"
+    compliance: ["OWASP-A7:2021", "CWE-521", "NIST SP 800-63B"]
+    severity: "MEDIUM"
+
+  - id: "PHP-12-MISSING-SECURITY-HEADERS"
+    name: "PHP: Missing HTTP Security Headers"
+    description: >
+      No X-Frame-Options, Content-Security-Policy or Strict-Transport-Security
+      headers set via header(). Add security headers to all responses.
+    languages: ["php"]
+    regex_pattern: "(?i)header\\s*\\(\\s*['\"](?!(?:X-Frame-Options|Content-Security-Policy|Strict-Transport-Security|X-Content-Type-Options|X-XSS-Protection))"
+    compliance: ["OWASP-A5:2021", "CWE-16"]
+    severity: "LOW"
+
+  - id: "PHP-13-OPEN-REDIRECT"
+    name: "PHP: Potential Open Redirect"
+    description: >
+      header('Location: ...') using user-supplied input without validation
+      enables open redirect attacks for phishing.
+    languages: ["php"]
+    regex_pattern: "(?i)header\\s*\\(\\s*['\"]Location:\\s*['\"]\\s*\\.\\s*\\$_(?:GET|POST|REQUEST|COOKIE)"
+    compliance: ["OWASP-A1:2021", "CWE-601"]
+    severity: "MEDIUM"
+
+  - id: "PHP-14-DESERIALIZATION"
+    name: "PHP: Insecure Deserialization (unserialize)"
+    description: >
+      unserialize() on user-controlled data allows arbitrary PHP object injection
+      and potential remote code execution via gadget chains. Use JSON instead.
+    languages: ["php"]
+    regex_pattern: "(?i)unserialize\\s*\\([^)]*\\$_(?:GET|POST|REQUEST|COOKIE)"
+    compliance: ["OWASP-A8:2021", "CWE-502"]
+    severity: "CRITICAL"
+
+  - id: "PHP-15-PATH-TRAVERSAL"
+    name: "PHP: Potential Path Traversal"
+    description: >
+      File operations (fopen, file_get_contents, readfile) with user-controlled
+      paths allow reading arbitrary files. Validate and normalize paths.
+    languages: ["php"]
+    regex_pattern: "(?i)(?:fopen|file_get_contents|readfile|file_put_contents)\\s*\\([^)]*\\$_(?:GET|POST|REQUEST|COOKIE)"
+    compliance: ["OWASP-A1:2021", "CWE-22"]
+    severity: "HIGH"
+
+  - id: "PHP-16-EMPTY-DB-PASSWORD"
+    name: "PHP: Empty Database Password"
+    description: >
+      Database connection configured with an empty password. This allows
+      unauthenticated access to the database if exposed on the network.
+    languages: ["php"]
+    regex_pattern: "(?i)\\$pass(?:word)?\\s*=\\s*['\"]['\"]"
+    compliance: ["OWASP-A7:2021", "CWE-521", "PCI-DSS 8.2.3"]
+    severity: "CRITICAL"
+
+  - id: "PHP-17-EVAL-USAGE"
+    name: "PHP: Use of eval()"
+    description: >
+      eval() executes arbitrary PHP code and is a critical injection vector.
+      Refactor to avoid dynamic code execution entirely.
+    languages: ["php"]
+    regex_pattern: "(?<![a-zA-Z_])eval\\s*\\("
+    compliance: ["OWASP-A3:2021", "CWE-95"]
+    severity: "HIGH"
+
+  - id: "PHP-18-SENSITIVE-DATA-IN-DB-URL"
+    name: "PHP: Credentials Exposed in DSN / Connection String"
+    description: >
+      Database connection DSN string with hardcoded hostname, username or
+      password. Use environment variables for all connection parameters.
+    languages: ["php"]
+    regex_pattern: "(?i)\\$dsn\\s*=\\s*['\"][a-z]+:host="
+    compliance: ["OWASP-A7:2021", "CWE-312", "ISO-27001:A.9"]
+    severity: "MEDIUM"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # IaC — Dockerfile
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: "IAC-01-DOCKER-ROOT"
+    name: "Dockerfile: Container Running as Root"
+    description: >
+      No USER instruction found — container will run as root by default.
+      Add 'USER nonroot' or create a dedicated user to reduce blast radius.
+    languages: ["dockerfile"]
+    regex_pattern: "^FROM\\s+"
+    compliance: ["CWE-250", "OWASP-A5:2021", "ISO-27001:A.9"]
+    severity: "MEDIUM"
+
+  - id: "IAC-02-DOCKER-LATEST"
+    name: "Dockerfile: Unpinned 'latest' Tag"
+    description: >
+      Using ':latest' or no tag makes builds non-reproducible and may silently
+      pull a vulnerable image version. Pin to a specific digest or version tag.
+    languages: ["dockerfile"]
+    regex_pattern: "FROM\\s+[^\\s]+:latest|FROM\\s+[a-zA-Z0-9/_.-]+\\s"
+    compliance: ["CWE-829", "OWASP-A6:2021"]
+    severity: "LOW"
+
+  - id: "IAC-03-DOCKER-SECRET-ARG"
+    name: "Dockerfile: Secret Passed via ARG"
+    description: >
+      Secrets passed via ARG are visible in the image build cache and
+      'docker history'. Use Docker BuildKit secrets (--secret id=...) instead.
+    languages: ["dockerfile"]
+    regex_pattern: "(?i)ARG\\s+(password|secret|token|key|api_key|passwd)"
+    compliance: ["CWE-540", "OWASP-A7:2021"]
+    severity: "HIGH"
+
+  - id: "IAC-04-DOCKER-CURL-PIPE-SH"
+    name: "Dockerfile: Curl-Pipe-Bash Pattern"
+    description: >
+      Executing remote scripts via 'curl | sh' or 'wget | bash' allows supply-chain
+      attacks if the remote URL is compromised. Verify checksums instead.
+    languages: ["dockerfile"]
+    regex_pattern: "(?i)(?:curl|wget).+\\|\\s*(?:bash|sh|python|perl)"
+    compliance: ["CWE-829", "OWASP-A8:2021"]
+    severity: "HIGH"
+
+  - id: "IAC-05-DOCKER-PRIVILEGED"
+    name: "Dockerfile: Privileged Port (<1024)"
+    description: >
+      Exposing a port below 1024 requires root privileges inside the container.
+      Prefer a high port and use reverse-proxy mappings on the host.
+    languages: ["dockerfile"]
+    regex_pattern: "EXPOSE\\s+([1-9]|[1-9][0-9]{1,2}|10[0-1][0-9]|102[0-3])(?:\\s|$)"
+    compliance: ["CWE-250", "OWASP-A5:2021"]
+    severity: "LOW"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # IaC — docker-compose
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: "IAC-06-COMPOSE-PRIVILEGED"
+    name: "docker-compose: Privileged Mode Enabled"
+    description: >
+      'privileged: true' grants the container almost full host capabilities.
+      Remove it and use specific 'cap_add' entries instead.
+    languages: ["yaml_compose"]
+    regex_pattern: "(?i)privileged\\s*:\\s*true"
+    compliance: ["CWE-250", "OWASP-A5:2021", "ISO-27001:A.9"]
+    severity: "CRITICAL"
+
+  - id: "IAC-07-COMPOSE-HOST-NETWORK"
+    name: "docker-compose: Host Network Mode"
+    description: >
+      'network_mode: host' bypasses Docker network isolation, exposing all host
+      ports to the container. Use a named bridge network instead.
+    languages: ["yaml_compose"]
+    regex_pattern: "(?i)network_mode\\s*:\\s*['\"]?host['\"]?"
+    compliance: ["CWE-668", "OWASP-A5:2021"]
+    severity: "HIGH"
+
+  - id: "IAC-08-COMPOSE-SECRET-ENV"
+    name: "docker-compose: Hardcoded Secret in environment"
+    description: >
+      Hardcoded passwords or tokens in 'environment' blocks are stored in plain
+      text in the Compose file. Use Docker Secrets or env_file instead.
+    languages: ["yaml_compose"]
+    regex_pattern: "(?i)(PASSWORD|SECRET|TOKEN|API_KEY|PASSWD)\\s*[=:]\\s*[^\\$\\{][^\\s]+"
+    compliance: ["CWE-312", "OWASP-A7:2021"]
+    severity: "HIGH"
+
+  - id: "IAC-09-COMPOSE-BIND-ALL"
+    name: "docker-compose: Port Bound to 0.0.0.0"
+    description: >
+      Binding a port to '0.0.0.0' exposes it on all interfaces including public
+      ones. Bind to '127.0.0.1' unless intentionally public.
+    languages: ["yaml_compose"]
+    regex_pattern: "(?i)['\"]?0\\.0\\.0\\.0:"
+    compliance: ["CWE-668", "OWASP-A5:2021"]
+    severity: "MEDIUM"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # IaC — Terraform / HCL
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: "IAC-10-TF-PUBLIC-S3"
+    name: "Terraform: S3 Bucket Public ACL"
+    description: >
+      Setting 'acl = "public-read"' or '"public-read-write"' on an S3 bucket
+      exposes its contents to the internet. Use bucket policies with least privilege.
+    languages: ["terraform"]
+    regex_pattern: "(?i)acl\\s*=\\s*['\"]public-read"
+    compliance: ["CWE-732", "OWASP-A5:2021", "ISO-27001:A.13"]
+    severity: "CRITICAL"
+
+  - id: "IAC-11-TF-HARDCODED-SECRET"
+    name: "Terraform: Hardcoded Secret or Password"
+    description: >
+      Sensitive values hardcoded in .tf files are committed to version control
+      in plaintext. Use Terraform variables with sensitive=true and a secrets manager.
+    languages: ["terraform"]
+    regex_pattern: "(?i)(password|secret|token|api_key)\\s*=\\s*[\"'][^\"']{4,}[\"']"
+    compliance: ["CWE-798", "OWASP-A7:2021"]
+    severity: "HIGH"
+
+  - id: "IAC-12-TF-OPEN-SECURITY-GROUP"
+    name: "Terraform: Security Group Open to 0.0.0.0/0"
+    description: >
+      An ingress rule allowing traffic from 0.0.0.0/0 exposes the resource to
+      the entire internet. Restrict to known IP ranges.
+    languages: ["terraform"]
+    regex_pattern: "(?i)cidr_blocks\\s*=\\s*\\[\\s*[\"']0\\.0\\.0\\.0/0[\"']"
+    compliance: ["CWE-668", "OWASP-A5:2021", "ISO-27001:A.13"]
+    severity: "HIGH"
+
+  - id: "IAC-13-TF-UNENCRYPTED-STORAGE"
+    name: "Terraform: Storage Resource Without Encryption"
+    description: >
+      RDS, S3, or EBS resource without 'encrypted = true' or 'storage_encrypted = true'.
+      Enable server-side encryption at rest.
+    languages: ["terraform"]
+    regex_pattern: "(?i)(?:storage_encrypted|encrypted)\\s*=\\s*false"
+    compliance: ["CWE-311", "PCI-DSS 3.4", "ISO-27001:A.10"]
+    severity: "HIGH"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # IaC — Kubernetes manifests
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - id: "IAC-14-K8S-PRIVILEGED-CONTAINER"
+    name: "Kubernetes: Privileged Container"
+    description: >
+      'privileged: true' in securityContext gives the container near-root access
+      to the host kernel. Remove it and use specific capabilities.
+    languages: ["yaml_k8s"]
+    regex_pattern: "(?i)privileged\\s*:\\s*true"
+    compliance: ["CWE-250", "OWASP-A5:2021", "ISO-27001:A.9"]
+    severity: "CRITICAL"
+
+  - id: "IAC-15-K8S-NO-RESOURCE-LIMITS"
+    name: "Kubernetes: Container Without Resource Limits"
+    description: >
+      Containers without CPU/memory limits can consume all host resources, causing
+      denial of service. Always define 'resources.limits'.
+    languages: ["yaml_k8s"]
+    regex_pattern: "(?i)containers:\\s*\\n(?\!.*resources)"
+    compliance: ["CWE-400", "OWASP-A5:2021"]
+    severity: "MEDIUM"
+
+  - id: "IAC-16-K8S-HOST-PID"
+    name: "Kubernetes: hostPID or hostNetwork Enabled"
+    description: >
+      'hostPID: true' or 'hostNetwork: true' breaks pod isolation and gives the
+      container direct access to host process/network namespaces.
+    languages: ["yaml_k8s"]
+    regex_pattern: "(?i)(?:hostPID|hostNetwork|hostIPC)\\s*:\\s*true"
+    compliance: ["CWE-668", "OWASP-A5:2021"]
+    severity: "HIGH"
+
+  - id: "IAC-17-K8S-SECRET-ENV"
+    name: "Kubernetes: Secret Value Hardcoded in env"
+    description: >
+      Hardcoded values in container env blocks bypass Kubernetes Secrets management.
+      Use secretKeyRef to pull values from a Secret object.
+    languages: ["yaml_k8s"]
+    regex_pattern: "(?i)(?:value|value_from)\\s*:\\s*['\"]?(?:password|secret|token|key).*['\"]?"
+    compliance: ["CWE-312", "OWASP-A7:2021"]
+    severity: "HIGH"

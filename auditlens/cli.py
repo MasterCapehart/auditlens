@@ -46,8 +46,8 @@ def main():
     sp = subparsers.add_parser('scan', help='Ejecutar SAST + SCA + Taint analysis.')
     sp.add_argument('path', help='Directorio o archivo a escanear.')
     sp.add_argument(
-        '--format', choices=['text', 'sarif', 'pdf', 'json', 'docx'], default='text',
-        help='Formato de salida (default: text). docx genera informe Word completo.',
+        '--format', choices=['text', 'sarif', 'pdf', 'json', 'docx', 'html', 'xlsx'], default='text',
+        help='Formato de salida (default: text). html=reporte estático, xlsx=Excel, docx=Word completo.',
     )
     sp.add_argument('--output', '-o', default=None, help='Ruta del archivo de salida.')
     sp.add_argument(
@@ -70,6 +70,13 @@ def main():
     sp.add_argument('--auditor', default='[Auditor por asignar]', help='Nombre del auditor líder.')
     sp.add_argument('--trimestre', default='primer trimestre de 2025',
                     help='Período de la auditoría.')
+    sp.add_argument('--ai-fix', dest='ai_fix', action='store_true',
+                    help='Solicitar sugerencias de fix a Claude API para hallazgos HIGH+.')
+    sp.add_argument('--ai-fix-severity', dest='ai_fix_severity', default='HIGH',
+                    choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
+                    help='Severidad mínima para AI fixes (default: HIGH).')
+    sp.add_argument('--ai-fix-output', dest='ai_fix_output', default=None,
+                    help='Guardar sugerencias AI en JSON en esta ruta.')
 
     # ── plan ─────────────────────────────────────────────────────────────────
     pp = subparsers.add_parser(
@@ -119,10 +126,236 @@ def main():
     # ── watch-xcode ───────────────────────────────────────────────────────────
     subparsers.add_parser('watch-xcode', help='Monitorear logs del Simulador iOS (macOS + Xcode).')
 
+    # ── fix ───────────────────────────────────────────────────────────────────
+    fp = subparsers.add_parser('fix', help='Obtener sugerencias de fix via Claude API.')
+    fp.add_argument('path', help='Directorio o archivo a escanear.')
+    fp.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='HIGH',
+                    help='Severidad mínima (default: HIGH).')
+    fp.add_argument('--rule', default=None, help='Limitar a un rule_id específico.')
+    fp.add_argument('--output', '-o', default=None, help='Guardar sugerencias en JSON.')
+    fp.add_argument('--no-sca', dest='no_sca', action='store_true')
+
+    # ── multi-scan ────────────────────────────────────────────────────────────
+    msp = subparsers.add_parser('multi-scan', help='Escanear múltiples proyectos y mostrar resumen unificado.')
+    msp.add_argument('paths', nargs='+', help='Directorios a escanear.')
+    msp.add_argument('--format', choices=['text', 'html', 'json', 'xlsx'], default='text',
+                     help='Formato del reporte unificado.')
+    msp.add_argument('--output', '-o', default=None)
+    msp.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='LOW')
+    msp.add_argument('--no-sca', dest='no_sca', action='store_true')
+
+    # ── install-hook ──────────────────────────────────────────────────────────
+    ihp = subparsers.add_parser('install-hook', help='Instalar pre-commit hook de seguridad en el repo.')
+    ihp.add_argument('--path', default='.', help='Ruta del repositorio (default: directorio actual).')
+    ihp.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='HIGH',
+                     help='Severidad que bloquea el commit (default: HIGH).')
+
+    # ── remove-hook ───────────────────────────────────────────────────────────
+    rhp = subparsers.add_parser('remove-hook', help='Eliminar el pre-commit hook instalado por AuditLens.')
+    rhp.add_argument('--path', default='.', help='Ruta del repositorio (default: directorio actual).')
+
+    # ── web-scan ──────────────────────────────────────────────────────────────
+    wsp = subparsers.add_parser(
+        'web-scan',
+        help='Auditoría de seguridad web (DAST) sobre una URL. Requiere autorización escrita.',
+    )
+    wsp.add_argument('url', help='URL objetivo (ej: https://empresa.com).')
+    wsp.add_argument(
+        '--authorized', action='store_true', required=True,
+        help='OBLIGATORIO: confirma que tienes autorización escrita del dueño del sistema.',
+    )
+    wsp.add_argument(
+        '--depth', type=int, default=2,
+        help='Profundidad de crawling (default: 2). Mayor = más páginas analizadas.',
+    )
+    wsp.add_argument(
+        '--max-pages', dest='max_pages', type=int, default=50,
+        help='Máximo de páginas a rastrear (default: 50).',
+    )
+    wsp.add_argument(
+        '--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='LOW',
+        help='Severidad mínima a reportar (default: LOW).',
+    )
+    wsp.add_argument(
+        '--format', choices=['text', 'docx', 'html', 'json', 'xlsx'], default='text',
+        help='Formato del reporte (default: text).',
+    )
+    wsp.add_argument('--output', '-o', default=None, help='Ruta del archivo de salida.')
+    wsp.add_argument('--no-verify-ssl', dest='no_verify_ssl', action='store_true',
+                     help='Desactivar verificación SSL (para targets con cert self-signed).')
+    wsp.add_argument('--skip-dast', dest='skip_dast', action='store_true',
+                     help='Omitir probes activos (XSS, SQLi, redirect). Solo análisis pasivo.')
+    wsp.add_argument('--empresa', default='Empresa', help='Nombre de la empresa (para informe).')
+    wsp.add_argument('--sistema', default='Aplicación Web', help='Nombre del sistema auditado.')
+    wsp.add_argument('--auditor', default='[Auditor por asignar]', help='Nombre del auditor.')
+    wsp.add_argument('--autorizado-por', dest='autorizado_por', default='[Responsable técnico]',
+                     help='Nombre del responsable que autorizó la auditoría.')
+
     # ── history ───────────────────────────────────────────────────────────────
     hp = subparsers.add_parser('history', help='Mostrar historial de escaneos.')
     hp.add_argument('path', help='Ruta del proyecto.')
     hp.add_argument('--limit', type=int, default=10, help='Número de escaneos a mostrar.')
+
+    # ── git-scan ──────────────────────────────────────────────────────────────
+    gsp = subparsers.add_parser('git-scan', help='Escanear historial de Git en busca de secretos commiteados.')
+    gsp.add_argument('path', help='Ruta del repositorio git.')
+    gsp.add_argument('--depth', type=int, default=200, help='Número máximo de commits a analizar (default: 200).')
+    gsp.add_argument('--format', choices=['text', 'json', 'html', 'xlsx', 'csv'], default='text')
+    gsp.add_argument('--output', '-o', default=None)
+
+    # ── dns-check ─────────────────────────────────────────────────────────────
+    dnsp = subparsers.add_parser('dns-check', help='Verificar seguridad DNS/Email (SPF, DMARC, DKIM, DNSSEC).')
+    dnsp.add_argument('domain', help='Dominio a verificar (ej: empresa.com).')
+    dnsp.add_argument('--dkim-selector', dest='dkim_selector', default='default',
+                      help='Selector DKIM a verificar (default: default).')
+    dnsp.add_argument('--format', choices=['text', 'json', 'html', 'xlsx', 'csv'], default='text')
+    dnsp.add_argument('--output', '-o', default=None)
+
+    # ── license-check ─────────────────────────────────────────────────────────
+    lcp = subparsers.add_parser('license-check', help='Verificar compatibilidad de licencias de dependencias.')
+    lcp.add_argument('path', help='Ruta del proyecto.')
+    lcp.add_argument('--project-type', dest='project_type', choices=['commercial', 'opensource'],
+                     default='commercial', help='Tipo de proyecto (default: commercial).')
+    lcp.add_argument('--format', choices=['text', 'json', 'html', 'xlsx', 'csv'], default='text')
+    lcp.add_argument('--output', '-o', default=None)
+
+    # ── dep-confusion ─────────────────────────────────────────────────────────
+    dcp = subparsers.add_parser('dep-confusion', help='Detectar vectores de dependency confusion.')
+    dcp.add_argument('path', help='Ruta del proyecto.')
+    dcp.add_argument('--format', choices=['text', 'json', 'html', 'xlsx', 'csv'], default='text')
+    dcp.add_argument('--output', '-o', default=None)
+
+    # ── api-scan ──────────────────────────────────────────────────────────────
+    asp = subparsers.add_parser(
+        'api-scan',
+        help='Escanear endpoints de una API definida en OpenAPI/Swagger. Requiere autorización.',
+    )
+    asp.add_argument('spec', help='URL o ruta al archivo OpenAPI/Swagger (JSON o YAML).')
+    asp.add_argument('--authorized', action='store_true', required=True,
+                     help='OBLIGATORIO: confirma autorización para escanear la API.')
+    asp.add_argument('--base-url', dest='base_url', default=None,
+                     help='Base URL para las llamadas (sobreescribe la spec).')
+    asp.add_argument('--token', default=None,
+                     help='Bearer token para autenticación (o usa AUTH_TOKEN env var).')
+    asp.add_argument('--max-endpoints', dest='max_endpoints', type=int, default=50)
+    asp.add_argument('--format', choices=['text', 'json', 'html', 'xlsx', 'csv'], default='text')
+    asp.add_argument('--output', '-o', default=None)
+
+    # ── github-audit ──────────────────────────────────────────────────────────
+    gap = subparsers.add_parser('github-audit', help='Auditar repositorio GitHub (branch protection, permisos, Actions).')
+    gap.add_argument('repo', help='Repositorio en formato owner/repo.')
+    gap.add_argument('--token', default=None, help='GitHub token (o usa GITHUB_TOKEN env var).')
+    gap.add_argument('--format', choices=['text', 'json', 'html', 'xlsx', 'csv'], default='text')
+    gap.add_argument('--output', '-o', default=None)
+
+    # ── sbom ──────────────────────────────────────────────────────────────────
+    sbp = subparsers.add_parser('sbom', help='Generar Software Bill of Materials (CycloneDX o SPDX).')
+    sbp.add_argument('path', help='Ruta del proyecto.')
+    sbp.add_argument('--format', choices=['cyclonedx', 'spdx'], default='cyclonedx',
+                     help='Formato SBOM (default: cyclonedx).')
+    sbp.add_argument('--output', '-o', default=None, help='Archivo de salida.')
+    sbp.add_argument('--project-name', dest='project_name', default='',
+                     help='Nombre del proyecto para el SBOM.')
+
+    # ── threat-model ──────────────────────────────────────────────────────────
+    tmp = subparsers.add_parser('threat-model', help='Generar modelo de amenazas STRIDE con Claude AI.')
+    tmp.add_argument('path', help='Ruta del proyecto a modelar.')
+    tmp.add_argument('--output', '-o', default=None, help='Guardar modelo en JSON.')
+    tmp.add_argument('--model', default='claude-sonnet-4-6', help='Modelo Claude a usar.')
+
+    # ── aws-audit ─────────────────────────────────────────────────────────────
+    awsp = subparsers.add_parser('aws-audit', help='Auditar cuenta AWS (IAM, S3, Security Groups, CloudTrail).')
+    awsp.add_argument('--region', default=None, help='Región AWS (default: AWS_DEFAULT_REGION).')
+    awsp.add_argument('--profile', default=None, help='Perfil AWS credentials.')
+    awsp.add_argument('--format', choices=['text', 'json', 'html', 'xlsx', 'csv'], default='text')
+    awsp.add_argument('--output', '-o', default=None)
+
+    # ── github-pr ─────────────────────────────────────────────────────────────
+    prp = subparsers.add_parser('github-pr', help='Publicar hallazgos como comentarios en un PR de GitHub.')
+    prp.add_argument('repo', help='Repositorio en formato owner/repo.')
+    prp.add_argument('pr', type=int, help='Número del Pull Request.')
+    prp.add_argument('findings', help='Ruta al archivo JSON de hallazgos (output de auditlens scan --format json).')
+    prp.add_argument('--token', default=None, help='GitHub token (o usa GITHUB_TOKEN env var).')
+    prp.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='MEDIUM',
+                     help='Severidad mínima a publicar (default: MEDIUM).')
+
+    # ── trending ──────────────────────────────────────────────────────────────
+    trp = subparsers.add_parser('trending', help='Dashboard de tendencias de hallazgos a lo largo del tiempo.')
+    trp.add_argument('--days', type=int, default=30, help='Días de historial a mostrar (default: 30).')
+    trp.add_argument('--format', choices=['text', 'html'], default='text',
+                     help='text=terminal, html=dashboard interactivo.')
+    trp.add_argument('--output', '-o', default='trending.html',
+                     help='Archivo HTML de salida (solo con --format html).')
+    trp.add_argument('--db', default=None, help='Ruta al archivo de base de datos (default: ~/.auditlens/history.db).')
+
+    # ── graph ─────────────────────────────────────────────────────────────────
+    grp = subparsers.add_parser(
+        'graph',
+        help='Visualizar la superficie de ataque del proyecto como grafo interactivo D3.js.',
+    )
+    grp.add_argument('path', help='Directorio del proyecto.')
+    grp.add_argument(
+        '--serve', action='store_true',
+        help='Iniciar servidor web y abrir el grafo en el browser (requiere Flask).',
+    )
+    grp.add_argument(
+        '--output', '-o', default=None,
+        help='Exportar grafo a archivo HTML o JSON (ej: graph.html, graph.json).',
+    )
+    grp.add_argument(
+        '--port', type=int, default=7777,
+        help='Puerto del servidor (default: 7777). Solo con --serve.',
+    )
+    grp.add_argument(
+        '--max-files', dest='max_files', type=int, default=200,
+        help='Máximo de archivos a analizar (default: 200).',
+    )
+    grp.add_argument(
+        '--no-browser', dest='no_browser', action='store_true',
+        help='No abrir browser automáticamente con --serve.',
+    )
+
+    # ── archaeology ───────────────────────────────────────────────────────────
+    archp = subparsers.add_parser(
+        'archaeology',
+        help='Temporal Vulnerability Archaeology: mina el historial git y reconstruye el ciclo de vida de vulns.',
+    )
+    archp.add_argument('path', help='Ruta del repositorio git.')
+    archp.add_argument(
+        '--depth', type=int, default=500,
+        help='Número máximo de commits a analizar (default: 500).',
+    )
+    archp.add_argument(
+        '--output', '-o', default=None,
+        help='Exportar reporte HTML a esta ruta (ej: archaeology.html).',
+    )
+    archp.add_argument(
+        '--format', choices=['text', 'html', 'json'], default='text',
+        help='Formato de salida (default: text).',
+    )
+    archp.add_argument(
+        '--verbose', action='store_true',
+        help='Mostrar detalles de cada commit analizado.',
+    )
+
+    # ── schedule ──────────────────────────────────────────────────────────────
+    sched_p = subparsers.add_parser('schedule', help='Gestionar escaneos programados (cron).')
+    sched_sub = sched_p.add_subparsers(dest='sched_command')
+
+    sched_add = sched_sub.add_parser('add', help='Agregar un escaneo programado.')
+    sched_add.add_argument('--path', required=True, help='Ruta del proyecto a escanear.')
+    sched_add.add_argument('--cron', required=True, help='Expresión cron (ej: "0 2 * * *" = 2am diario).')
+    sched_add.add_argument('--email', default=None, help='Email para enviar el reporte.')
+    sched_add.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='MEDIUM')
+    sched_add.add_argument('--format', choices=['html', 'json', 'xlsx'], default='html')
+    sched_add.add_argument('--label', default='', help='Nombre descriptivo del escaneo.')
+
+    sched_sub.add_parser('list', help='Listar escaneos programados.')
+
+    sched_rm = sched_sub.add_parser('remove', help='Eliminar un escaneo programado.')
+    sched_rm.add_argument('id', help='ID del escaneo a eliminar.')
+
+    sched_sub.add_parser('run-pending', help='Ejecutar escaneos pendientes (llamado por cron).')
 
     args = parser.parse_args()
 
@@ -133,6 +366,8 @@ def main():
             export_pdf=(args.format == 'pdf'),
             export_json=(args.format == 'json'),
             export_docx=(args.format == 'docx'),
+            export_html=(args.format == 'html'),
+            export_xlsx=(args.format == 'xlsx'),
             output_path=args.output,
             min_severity=args.severity,
             run_sca=not args.no_sca,
@@ -144,6 +379,9 @@ def main():
             sistema=getattr(args, 'sistema', 'Sistema de Software'),
             auditor=getattr(args, 'auditor', '[Auditor por asignar]'),
             trimestre=getattr(args, 'trimestre', 'primer trimestre de 2025'),
+            ai_fix=getattr(args, 'ai_fix', False),
+            ai_fix_severity=getattr(args, 'ai_fix_severity', 'HIGH'),
+            ai_fix_output=getattr(args, 'ai_fix_output', None),
         )
         sys.exit(exit_code)
 
@@ -180,12 +418,173 @@ def main():
             sys.exit(1)
         watch_xcode_simulator()
 
+    elif args.command == 'fix':
+        _run_fix_command(args)
+
+    elif args.command == 'multi-scan':
+        from .multi_scan import run_multi_scan
+        exit_code = run_multi_scan(
+            paths=args.paths,
+            min_severity=args.severity,
+            run_sca=not args.no_sca,
+            export_format=args.format,
+            output_path=args.output,
+        )
+        sys.exit(exit_code)
+
+    elif args.command == 'install-hook':
+        from .pre_commit import install_hook
+        install_hook(repo_path=args.path, severity=args.severity)
+
+    elif args.command == 'remove-hook':
+        from .pre_commit import remove_hook
+        remove_hook(repo_path=args.path)
+
+    elif args.command == 'web-scan':
+        _run_web_scan_command(args)
+
     elif args.command == 'history':
         from .history import print_history
         print_history(args.path, limit=args.limit)
 
+    elif args.command == 'git-scan':
+        _run_git_scan_command(args)
+
+    elif args.command == 'dns-check':
+        _run_dns_check_command(args)
+
+    elif args.command == 'license-check':
+        _run_license_check_command(args)
+
+    elif args.command == 'dep-confusion':
+        _run_dep_confusion_command(args)
+
+    elif args.command == 'api-scan':
+        _run_api_scan_command(args)
+
+    elif args.command == 'github-audit':
+        _run_github_audit_command(args)
+
+    elif args.command == 'sbom':
+        _run_sbom_command(args)
+
+    elif args.command == 'threat-model':
+        _run_threat_model_command(args)
+
+    elif args.command == 'aws-audit':
+        _run_aws_audit_command(args)
+
+    elif args.command == 'github-pr':
+        _run_github_pr_command(args)
+
+    elif args.command == 'trending':
+        _run_trending_command(args)
+
+    elif args.command == 'graph':
+        _run_graph_command(args)
+
+    elif args.command == 'archaeology':
+        _run_archaeology_command(args)
+
+    elif args.command == 'schedule':
+        _run_schedule_command(args)
+
     else:
         parser.print_help()
+
+
+def _run_web_scan_command(args):
+    """Execute 'auditlens web-scan' — DAST + report generation."""
+    import json as _json
+    from .web_scanner import run_web_scan
+
+    print(
+        '\n\033[93m[AuditLens]\033[0m AVISO LEGAL: Este módulo realiza pruebas activas sobre sistemas en vivo.\n'
+        '  Úsalo solo con autorización escrita del propietario del sistema.\n'
+    )
+
+    result = run_web_scan(
+        url=args.url,
+        depth=args.depth,
+        max_pages=args.max_pages,
+        min_severity=args.severity,
+        verify_ssl=not args.no_verify_ssl,
+        skip_dast_probes=args.skip_dast,
+    )
+
+    fmt = args.format
+    out = args.output
+
+    if fmt == 'docx':
+        from .web_docx_exporter import generate_web_docx_report
+        out = out or 'informe_auditoria_web.docx'
+        generate_web_docx_report(
+            scan_result=result,
+            output_path=out,
+            empresa=args.empresa,
+            sistema=args.sistema,
+            auditor=args.auditor,
+            authorized_by=args.autorizado_por,
+        )
+
+    elif fmt == 'html':
+        from .html_exporter import generate_html_report
+        out = out or 'audit_web_report.html'
+        generate_html_report(result.findings, scan_path=args.url, output_path=out)
+
+    elif fmt == 'xlsx':
+        from .xlsx_exporter import generate_xlsx_report
+        out = out or 'audit_web_report.xlsx'
+        generate_xlsx_report(result.findings, scan_path=args.url, output_path=out)
+
+    elif fmt == 'json':
+        out = out or 'audit_web_results.json'
+        data = {
+            'target': result.target_url,
+            'scan_time': result.scan_time,
+            'duration_seconds': round(result.scan_duration, 1),
+            'pages_scanned': result.pages_scanned,
+            'js_files': result.js_files_scanned,
+            'forms': result.forms_scanned,
+            'tech_stack': result.tech_stack,
+            'findings': result.findings,
+        }
+        with open(out, 'w', encoding='utf-8') as fh:
+            _json.dump(data, fh, indent=2, default=str)
+        print(f'\033[92m[AuditLens]\033[0m JSON guardado: {out}')
+
+    has_critical = any(f['severity'] in ('CRITICAL', 'HIGH') for f in result.findings)
+    sys.exit(1 if has_critical else 0)
+
+
+def _run_fix_command(args):
+    """Run 'auditlens fix' — scan then get AI fix suggestions."""
+    import os
+    from .rules_engine import RulesEngine
+    from .taint_analyzer import TaintAnalyzer
+    from .analyzer import analyze_file, _SUPPORTED_EXTENSIONS
+    from .ai_fix import run_ai_fix
+
+    findings_acc: list = []
+    rules_engine = RulesEngine()
+    taint_analyzer = TaintAnalyzer()
+    exclude_dirs = {'venv', '.venv', 'env', '.env', 'node_modules', '.git', '__pycache__', 'build', 'dist'}
+
+    if os.path.isfile(args.path):
+        analyze_file(args.path, rules_engine, taint_analyzer, min_severity=args.severity,
+                     all_findings_accumulator=findings_acc)
+    elif os.path.isdir(args.path):
+        for dirpath, dirnames, files in os.walk(args.path):
+            dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
+            for fname in files:
+                ext = os.path.splitext(fname)[1].lower()
+                base = fname.lower()
+                if ext in _SUPPORTED_EXTENSIONS or base.startswith('dockerfile'):
+                    analyze_file(os.path.join(dirpath, fname), rules_engine, taint_analyzer,
+                                 min_severity=args.severity, all_findings_accumulator=findings_acc)
+
+    run_ai_fix(findings_acc, min_severity=args.severity, rule_filter=args.rule,
+               output_path=args.output)
 
 
 def _run_plan_command(args):
@@ -267,6 +666,272 @@ def _run_plan_command(args):
     print(f'   ✓ Plan de seguimiento con KPIs')
     print(f'   ✓ Anexos')
     print(f'\n   \033[90mAbra el documento en Word y presione Ctrl+A → F9 para actualizar el índice.\033[0m')
+
+
+def _export_findings(findings, fmt, out, scan_path=''):
+    """Helper to export findings in various formats."""
+    import json as _json
+    if fmt == 'json':
+        out = out or 'findings.json'
+        with open(out, 'w', encoding='utf-8') as fh:
+            _json.dump(findings, fh, indent=2, default=str)
+        print(f'\033[92m[AuditLens]\033[0m JSON guardado: {out}')
+    elif fmt == 'html':
+        from .html_exporter import generate_html_report
+        out = out or 'report.html'
+        generate_html_report(findings, scan_path=scan_path, output_path=out)
+    elif fmt == 'xlsx':
+        from .xlsx_exporter import generate_xlsx_report
+        out = out or 'report.xlsx'
+        generate_xlsx_report(findings, scan_path=scan_path, output_path=out)
+    elif fmt == 'csv':
+        from .csv_exporter import generate_csv_report
+        out = out or 'findings.csv'
+        generate_csv_report(findings, scan_path=scan_path, output_path=out)
+    elif fmt == 'text':
+        _print_findings_text(findings)
+
+
+def _print_findings_text(findings):
+    """Minimal text printer for non-scan commands."""
+    _SEV_COLORS = {
+        'CRITICAL': '\033[91m', 'HIGH': '\033[93m',
+        'MEDIUM': '\033[94m', 'LOW': '\033[92m',
+    }
+    RESET = '\033[0m'
+    for f in sorted(findings, key=lambda x: {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}.get(x.get('severity', 'LOW'), 4)):
+        sev = f.get('severity', 'LOW')
+        color = _SEV_COLORS.get(sev, '')
+        print(f'{color}[{sev}]{RESET} {f.get("rule_id", "")} — {f.get("name", "")}')
+        print(f'  {f.get("file", "")}:{f.get("line", "")}')
+        desc = f.get('description', '')
+        print(f'  {desc[:200]}{"..." if len(desc) > 200 else ""}')
+        print()
+
+
+def _run_git_scan_command(args):
+    from .git_secrets_scanner import scan_git_history
+    findings = scan_git_history(args.path, max_commits=args.depth)
+    _export_findings(findings, args.format, args.output, scan_path=args.path)
+    has_critical = any(f['severity'] in ('CRITICAL', 'HIGH') for f in findings)
+    sys.exit(1 if has_critical else 0)
+
+
+def _run_dns_check_command(args):
+    from .dns_checker import run_dns_check
+    findings = run_dns_check(args.domain, dkim_selector=args.dkim_selector)
+    _export_findings(findings, args.format, args.output, scan_path=args.domain)
+    has_critical = any(f['severity'] in ('CRITICAL', 'HIGH') for f in findings)
+    sys.exit(1 if has_critical else 0)
+
+
+def _run_license_check_command(args):
+    from .license_checker import check_licenses
+    findings = check_licenses(args.path, project_type=args.project_type)
+    _export_findings(findings, args.format, args.output, scan_path=args.path)
+    sys.exit(0)
+
+
+def _run_dep_confusion_command(args):
+    from .dep_confusion import scan_dependency_confusion
+    findings = scan_dependency_confusion(args.path)
+    _export_findings(findings, args.format, args.output, scan_path=args.path)
+    has_critical = any(f['severity'] == 'HIGH' for f in findings)
+    sys.exit(1 if has_critical else 0)
+
+
+def _run_api_scan_command(args):
+    import os
+    from .api_scanner import run_api_scan
+    print(
+        '\n\033[93m[AuditLens]\033[0m AVISO: api-scan realiza llamadas HTTP activas a la API objetivo.\n'
+        '  Usa solo con autorización del propietario.\n'
+    )
+    token = args.token or os.environ.get('AUTH_TOKEN', '')
+    headers = {'Authorization': f'Bearer {token}'} if token else None
+    findings = run_api_scan(
+        spec_source=args.spec,
+        base_url=args.base_url,
+        headers=headers,
+        max_endpoints=args.max_endpoints,
+    )
+    _export_findings(findings, args.format, args.output, scan_path=args.spec)
+    has_critical = any(f['severity'] in ('CRITICAL', 'HIGH') for f in findings)
+    sys.exit(1 if has_critical else 0)
+
+
+def _run_github_audit_command(args):
+    from .github_auditor import run_github_audit
+    findings = run_github_audit(args.repo, token=args.token)
+    _export_findings(findings, args.format, args.output, scan_path=args.repo)
+    has_critical = any(f['severity'] in ('CRITICAL', 'HIGH') for f in findings)
+    sys.exit(1 if has_critical else 0)
+
+
+def _run_sbom_command(args):
+    from .sbom_exporter import generate_cyclonedx, generate_spdx
+    fmt = args.format
+    project_name = args.project_name or ''
+    if fmt == 'spdx':
+        out = args.output or 'sbom.spdx.json'
+        generate_spdx(args.path, out, project_name=project_name)
+    else:
+        out = args.output or 'sbom.cyclonedx.json'
+        generate_cyclonedx(args.path, out, project_name=project_name)
+    sys.exit(0)
+
+
+def _run_threat_model_command(args):
+    import os
+    from .threat_modeler import run_threat_model, print_threat_model
+    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        print('\033[91m[AuditLens]\033[0m Configura ANTHROPIC_API_KEY para usar threat-model.')
+        sys.exit(1)
+    result = run_threat_model(
+        project_path=args.path,
+        api_key=api_key,
+        model=args.model,
+        output_path=args.output,
+    )
+    print_threat_model(result)
+    sys.exit(0)
+
+
+def _run_aws_audit_command(args):
+    from .aws_auditor import run_aws_audit
+    findings = run_aws_audit(region=args.region, profile=args.profile)
+    _export_findings(findings, args.format, args.output, scan_path='AWS')
+    has_critical = any(f['severity'] in ('CRITICAL', 'HIGH') for f in findings)
+    sys.exit(1 if has_critical else 0)
+
+
+def _run_github_pr_command(args):
+    from .github_pr import run_github_pr_comment
+    run_github_pr_comment(
+        repo=args.repo,
+        pr_number=args.pr,
+        findings_source=args.findings,
+        min_severity=args.severity,
+        token=args.token,
+    )
+    sys.exit(0)
+
+
+def _run_trending_command(args):
+    import os
+    from .trending import _DB_PATH, print_trending_dashboard, generate_trending_html
+    db = args.db or _DB_PATH
+    if args.format == 'html':
+        out = args.output or 'trending.html'
+        generate_trending_html(db_path=db, days=args.days, output_path=out)
+    else:
+        print_trending_dashboard(db_path=db, days=args.days)
+    sys.exit(0)
+
+
+def _run_graph_command(args):
+    """Execute 'auditlens graph' — build and visualize the attack surface graph."""
+    import json as _json
+    from .attack_surface import build_attack_surface_graph
+    from .attack_surface_server import export_graph_html, serve_attack_surface_graph, _save_and_open
+
+    graph_data = build_attack_surface_graph(
+        project_path=args.path,
+        max_files=args.max_files,
+    )
+
+    output = args.output
+
+    if output:
+        if output.endswith('.json'):
+            with open(output, 'w', encoding='utf-8') as fh:
+                _json.dump(graph_data, fh, indent=2, ensure_ascii=False)
+            print(f'\033[92m[AuditLens]\033[0m JSON exportado: {output}')
+        else:
+            # Default to HTML
+            if not output.endswith('.html'):
+                output += '.html'
+            export_graph_html(graph_data, output)
+    elif args.serve:
+        serve_attack_surface_graph(
+            graph_data,
+            port=args.port,
+            host='127.0.0.1',
+            open_browser=not args.no_browser,
+        )
+    else:
+        # No output specified — save to temp file and open
+        _save_and_open(graph_data, open_browser=True)
+
+    # Print summary
+    stats = graph_data['stats']
+    sev = stats['severity_counts']
+    types = stats['type_counts']
+    print(f'\n\033[1m=== ATTACK SURFACE SUMMARY ===\033[0m')
+    print(f'  Nodos totales:   {stats["total_nodes"]}')
+    print(f'  Entry points:    {types.get("entry", 0)}')
+    print(f'  Sinks peligrosos:{types.get("sink", 0)}')
+    print(f'  Funciones:       {types.get("function", 0)}')
+    print(f'  Nodos tainted:   {stats["tainted_nodes"]}')
+    print(f'  CRITICAL: {sev["CRITICAL"]}  HIGH: {sev["HIGH"]}  MEDIUM: {sev["MEDIUM"]}  LOW: {sev["LOW"]}')
+    sys.exit(1 if sev['CRITICAL'] + sev['HIGH'] > 0 else 0)
+
+
+def _run_archaeology_command(args):
+    """Execute 'auditlens archaeology' — temporal vulnerability lifecycle analysis."""
+    import json as _json
+    from .temporal_archaeology import run_archaeology
+
+    fmt = getattr(args, 'format', 'text')
+    out = getattr(args, 'output', None)
+
+    result = run_archaeology(
+        repo_path=args.path,
+        max_commits=args.depth,
+        verbose=getattr(args, 'verbose', False),
+    )
+
+    if fmt == 'html' or (out and out.endswith('.html')):
+        from .archaeology_exporter import generate_archaeology_html
+        html_out = out or 'archaeology_report.html'
+        generate_archaeology_html(result, html_out)
+        import webbrowser, os
+        webbrowser.open(f'file://{os.path.abspath(html_out)}')
+
+    elif fmt == 'json' or (out and out.endswith('.json')):
+        json_out = out or 'archaeology_results.json'
+        with open(json_out, 'w', encoding='utf-8') as fh:
+            _json.dump(result, fh, indent=2, default=str)
+        print(f'\033[92m[AuditLens Archaeology]\033[0m JSON guardado: {json_out}')
+
+    # Always print terminal summary (already done inside run_archaeology)
+    stats = result.get('stats', {})
+    open_vulns = stats.get('open_vulnerabilities', 0)
+    sys.exit(1 if open_vulns > 0 else 0)
+
+
+def _run_schedule_command(args):
+    from .scheduler import add_schedule, list_schedules, remove_schedule, run_pending_schedules
+    cmd = getattr(args, 'sched_command', None)
+    if cmd == 'add':
+        add_schedule(
+            scan_path=args.path,
+            cron_expression=args.cron,
+            email=args.email,
+            min_severity=args.severity,
+            scan_format=args.format,
+            label=args.label,
+        )
+    elif cmd == 'list':
+        list_schedules()
+    elif cmd == 'remove':
+        remove_schedule(args.id)
+    elif cmd == 'run-pending':
+        run_pending_schedules()
+    else:
+        print('Uso: auditlens schedule [add|list|remove|run-pending]')
+    sys.exit(0)
 
 
 if __name__ == '__main__':

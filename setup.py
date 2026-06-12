@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="auditlens",
-    version="0.3.0",
-    description="SAST, SCA, Taint Analysis and Post-Mortem diagnostics for Python, JS, TS, Swift, Go, Java, Kotlin, Ruby.",
+    version="0.9.0",
+    description="SAST, SCA, IaC, DAST, API, DNS, Git, AWS, GitHub, SBOM, AI Threat Modeling — comprehensive security toolkit.",
     long_description=open("README.md", encoding="utf-8").read() if __import__("os").path.exists("README.md") else "",
     long_description_content_type="text/markdown",
     author="AuditLens Contributors",
@@ -50,10 +50,31 @@ setup(
         "dashboard": [
             "flask>=3.0",
             "werkzeug>=3.0",
+            "gunicorn>=21.0",
         ],
         # File watcher
         "watch": [
             "watchdog>=4.0",
+        ],
+        # Excel reports
+        "excel": [
+            "openpyxl>=3.1",
+        ],
+        # AI fix suggestions + threat modeling
+        "ai": [
+            "anthropic>=0.30",
+        ],
+        # AWS auditing
+        "aws": [
+            "boto3>=1.34",
+        ],
+        # API scanning (OpenAPI/Swagger)
+        "api": [
+            "pyyaml>=6.0",
+        ],
+        # Web auth scanner (BeautifulSoup)
+        "web": [
+            "beautifulsoup4>=4.12",
         ],
         # Full install (all optional features)
         "all": [
@@ -61,7 +82,12 @@ setup(
             "tree-sitter-typescript>=0.21",
             "flask>=3.0",
             "werkzeug>=3.0",
+            "gunicorn>=21.0",
             "watchdog>=4.0",
+            "openpyxl>=3.1",
+            "anthropic>=0.30",
+            "boto3>=1.34",
+            "beautifulsoup4>=4.12",
         ],
     },
     classifiers=[
