@@ -147,6 +147,44 @@ def notify_slack(
 
 # ── JIRA ──────────────────────────────────────────────────────────────────────
 
+def _jira_search_existing(
+    jira_url: str,
+    project_key: str,
+    rule_id: str,
+    file_path: str,
+    auth: tuple,
+    headers: dict,
+) -> Optional[str]:
+    """
+    Search Jira for an open issue with the same rule_id + file path.
+    Returns the issue key (e.g. 'SEC-42') if found, else None.
+    Uses JQL: project = KEY AND summary ~ "rule_id" AND summary ~ "file" AND statusCategory != Done
+    """
+    file_short = os.path.basename(file_path)
+    jql = (
+        f'project = "{project_key}" '
+        f'AND summary ~ "[AuditLens]" '
+        f'AND summary ~ "{rule_id}" '
+        f'AND summary ~ "{file_short}" '
+        f'AND statusCategory != Done'
+    )
+    try:
+        resp = requests.get(
+            f'{jira_url}/rest/api/2/search',
+            params={'jql': jql, 'fields': 'summary', 'maxResults': 1},
+            auth=auth,
+            headers=headers,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        issues = resp.json().get('issues', [])
+        if issues:
+            return issues[0]['key']
+    except requests.RequestException:
+        pass
+    return None
+
+
 def _build_jira_description(finding: dict) -> str:
     """Build a JIRA issue description in Atlassian Document Format (ADF) / wiki markup."""
     file_path = finding.get('file', 'unknown')
@@ -208,10 +246,28 @@ def notify_jira(
     headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
     api_base = f'{jira_url}/rest/api/2/issue'
     created = 0
+    skipped = 0
 
     for finding in filtered:
         file_short = '/'.join(finding.get('file', '').split('/')[-2:])
         summary = f"[AuditLens][{finding['severity']}] {finding['rule_id']} in {file_short}:{finding.get('line', '')}"
+
+        # Deduplication: skip if an open ticket already exists for this rule+file
+        existing = _jira_search_existing(
+            jira_url=jira_url,
+            project_key=project_key,
+            rule_id=finding['rule_id'],
+            file_path=finding.get('file', ''),
+            auth=auth,
+            headers=headers,
+        )
+        if existing:
+            print(
+                f'\033[90m[AuditLens Notifications] JIRA: skipping {finding["rule_id"]} — '
+                f'existing open ticket {existing}\033[0m'
+            )
+            skipped += 1
+            continue
 
         payload: Dict[str, Any] = {
             "fields": {
@@ -234,6 +290,8 @@ def notify_jira(
         except requests.RequestException as exc:
             print(f'\033[91m[AuditLens Notifications] JIRA error for {finding["rule_id"]}: {exc}\033[0m')
 
+    if skipped:
+        print(f'\033[90m[AuditLens Notifications] JIRA: {skipped} duplicate(s) skipped.\033[0m')
     return created
 
 

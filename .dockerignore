@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.tox/
+.venv/
+venv/
+env/
+
+# Tests & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor & OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+Thumbs.db
+
+# Node / VS Code extension
+node_modules/
+vscode-extension/out/
+vscode-extension/*.vsix
+
+# Secrets & local config
+.env
+*.env.*
+*.key
+*.pem
+
+# Generated artifacts
+audit_report.pdf
+audit_results.sarif
+*.sarif
+*.pdf
+
+# Git
+.git/
+
+# Local AuditLens history (not needed in image; use mounted volume)
+.auditlens/

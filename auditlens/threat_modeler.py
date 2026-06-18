@@ -1,5 +1,5 @@
 """
-AuditLens AI Threat Modeler (STRIDE) — usa Claude API para generar un
+AuditLens AI Threat Modeler (STRIDE) — usa AI API para generar un
 modelo de amenazas STRIDE a partir del código fuente o un diagrama arquitectural.
 
 STRIDE:
@@ -104,11 +104,11 @@ def _collect_code_summary(project_path: str, max_chars: int = 12000) -> str:
 def run_threat_model(
     project_path: str,
     api_key: Optional[str] = None,
-    model: str = 'claude-sonnet-4-6',
+    model: str = 'ai-model-latest',
     output_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Generate STRIDE threat model using Claude API.
+    Generate STRIDE threat model using AI API.
 
     Returns dict with components, data_flows, threats, trust_boundaries, summary.
     """
@@ -137,7 +137,7 @@ def run_threat_model(
         'Identify all components, data flows, trust boundaries, and threats.'
     )
 
-    print(f'\033[94m[AuditLens ThreatModel]\033[0m Consultando Claude API (STRIDE)...')
+    print(f'\033[94m[AuditLens ThreatModel]\033[0m Consultando AI API (STRIDE)...')
     client = anthropic.Anthropic(api_key=api_key)
 
     try:

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>AuditLens — Temporal Vulnerability Archaeology</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #e6edf3; padding: 24px; }
+h1 { color: #58a6ff; font-size: 22px; margin-bottom: 4px; }
+.subtitle { color: #8b949e; font-size: 13px; margin-bottom: 24px; }
+h2 { color: #58a6ff; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin: 0; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.stat-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; }
+.stat-value { font-size: 28px; font-weight: 700; color: #58a6ff; }
+.stat-label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+.section { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.chart-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; }
+.chart-card h2 { margin-bottom: 12px; }
+canvas { max-height: 220px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { text-align: left; padding: 8px; color: #8b949e; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+td { padding: 7px 8px; border-bottom: 1px solid #21262d; vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+.mono { font-family: 'SF Mono', Consolas, monospace; font-size: 11px; }
+.code-cell { color: #79c0ff; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sev-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+
+.dev-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.dev-card { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px; }
+.dev-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.dev-name { font-weight: 600; font-size: 14px; }
+.risk-badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+.dev-stats { display: flex; gap: 12px; font-size: 12px; color: #8b949e; margin-bottom: 6px; }
+.dev-pattern { font-size: 11px; color: #6e7681; }
+.sev-pill { padding: 2px 6px; border-radius: 10px; font-size: 11px; }
+
+.prob-bar { height: 6px; background: #21262d; border-radius: 3px; margin-bottom: 4px; }
+.prob-fill { height: 100%; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>⏳ Temporal Vulnerability Archaeology</h1>
+<p class="subtitle">Análisis histórico completo del ciclo de vida de vulnerabilidades · 23 commits minados</p>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value" style="color:#da3633">8</div>
+    <div class="stat-label">Vulnerabilidades abiertas</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#3fb950">2</div>
+    <div class="stat-label">Vulnerabilidades corregidas</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#e3b341">0d</div>
+    <div class="stat-label">Vida promedio en producción</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">2</div>
+    <div class="stat-label">Archivos afectados</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#f78166">1</div>
+    <div class="stat-label">Devs de alto riesgo</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">1</div>
+    <div class="stat-label">Desarrolladores analizados</div>
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="chart-card" style="grid-column: span 2">
+    <h2>Serie de Tiempo — Risk Score Histórico</h2>
+    <canvas id="timelineChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h2>Por Severidad</h2>
+    <canvas id="sevChart"></canvas>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Ciclos de Vida de Vulnerabilidades</h2>
+    <span style="color:#8b949e;font-size:12px">mostrando top 10 de 10</span>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Severidad</th><th>Vulnerabilidad</th><th>Archivo</th>
+      <th>Introducida por</th><th>Fecha intro</th><th>Vida</th>
+      <th>Estado</th><th>Código</th>
+    </tr></thead>
+    <tbody>
+        <tr>
+          <td><span class="sev-dot" style="background:#da3633"></span>CRITICAL</td>
+          <td>Unsafe Pickle Deserialization</td>
+          <td class="mono">docx_exporter.py</td>
+          <td>MasterCapehart</td>
+          <td>2026-05-21</td>
+          <td>—</td>
+          <td><span style="color:#da3633">● open</span></td>
+          <td class="mono code-cell">'DESER-01': 'Reemplazar pickle.loads() por json.loads() en b</td>
+        </tr>
+        <tr>
+          <td><span class="sev-dot" style="background:#da3633"></span>CRITICAL</td>
+          <td>Unsafe Pickle Deserialization</td>
+          <td class="mono">docx_exporter.py</td>
+          <td>MasterCapehart</td>
+          <td>2026-05-21</td>
+          <td>—</td>
+          <td><span style="color:#da3633">● open</span></td>
+          <td class="mono code-cell">'sintoma': 'Uso de pickle.loads() para deserializar datos no</td>
+        </tr>
+        <tr>
+          <td><span class="sev-dot" style="background:#da3633"></span>CRITICAL</td>
+          <td>Unsafe Pickle Deserialization</td>
+          <td class="mono">docx_exporter.py</td>
+          <td>MasterCapehart</td>
+          <td>2026-05-21</td>
+          <td>—</td>
+          <td><span style="color:#da3633">● open</span></td>
+          <td class="mono code-cell">'descripcion': 'Comprobar que no se usa pickle.loads() u otr</td>
+        </tr>
+        <tr>
+          <td><span class="sev-dot" style="background:#e3b341"></span>HIGH</td>
+          <td>os.system() call</td>
+          <td class="mono">docx_exporter.py</td>
+          <td>MasterCapehart</td>
+          <td>2026-05-21</td>
+          <td>—</td>
+          <td><span style="color:#da3633">● open</span></td>
+          <td class="mono code-cell">'accion_correctiva': 'Reemplazar os.system() por subprocess </td>
+        </tr>
+        <tr>
+          <td><span class="sev-dot" style="background:#e3b341"></span>HIGH</td>
+          <td>os.system() call</td>
+          <td class="mono">docx_exporter.py</td>
+          <td>MasterCapehart</td>
+          <td>2026-05-21</td>
+          <td>—</td>
+          <td><span style="color:#da3633">● open</span></td>
+          <td class="mono code-cell">'pasos': 'Buscar os.system(), subprocess.run() con shell=Tru</td>
+        </tr>
+        <tr>
+          <td><span class="sev-dot" style="background:#e3b341"></span>HIGH</td>
+          <td>Direct innerHTML Assignment (XSS)</td>
+          <td class="mono">dashboard.py</td>
+          <td>MasterCapehart</td>
+          <td>2026-05-11</td>
+          <td>—</td>
+          <td><span style="color:#da3633">● open</span></td>
+          <td class="mono code-cell">if (!findings.length) { tbody.innerHTML = '&lt;tr&gt;&lt;td colspan="</td>
+        </tr>
+        <tr>
+          <td><span class="sev-dot" style="background:#e3b341"></span>HIGH</td>
+          <td>Direct innerHTML Assignment (XSS)</td>
+          <td class="mono">dashboard.py</td>
+          <td>MasterCapehart</td>
+          <td>2026-05-11</td>
+          <td>0d</td>
+          <td><span style="color:#3fb950">✓ fixed</span></td>
+          <td class="mono code-cell">if (!sorted.length) { tbody.innerHTML = '&lt;tr&gt;&lt;td colspan="3"</td>
+        </tr>
+        <tr>
+          <td><span class="sev-dot" style="background:#e3b341"></span>HIGH</td>
+          <td>Direct innerHTML Assignment (XSS)</td>
+          <td class="mono">dashboard.py</td>
+          <td>MasterCapehart</td>
+          <td>2026-05-11</td>
+          <td>0d</td>
+          <td><span style="color:#3fb950">✓ fixed</span></td>
+          <td class="mono code-cell">if (!sorted.length) { tbody.innerHTML = '&lt;tr&gt;&lt;td colspan="3"</td>
+        </tr>
+        <tr>
+          <td><span class="sev-dot" style="background:#388bfd"></span>MEDIUM</td>
+          <td>Debug Mode Enabled</td>
+          <td class="mono">docx_exporter.py</td>
+          <td>MasterCapehart</td>
+          <td>2026-05-21</td>
+          <td>—</td>
+          <td><span style="color:#da3633">● open</span></td>
+          <td class="mono code-cell">'CONF-04':  'Cambiar DEBUG=True a DEBUG=False en settings.py</td>
+        </tr>
+        <tr>
+          <td><span class="sev-dot" style="background:#388bfd"></span>MEDIUM</td>
+          <td>Weak Hash Algorithm</td>
+          <td class="mono">docx_exporter.py</td>
+          <td>MasterCapehart</td>
+          <td>2026-05-21</td>
+          <td>—</td>
+          <td><span style="color:#da3633">● open</span></td>
+          <td class="mono code-cell">'backend/reportes/utils.py: reemplazar hashlib.md5() por has</td>
+        </tr></tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>Perfiles de Desarrolladores</h2></div>
+  <div class="dev-cards">
+        <div class="dev-card">
+          <div class="dev-header">
+            <span class="dev-name">MasterCapehart</span>
+            <span class="risk-badge" style="background:#da363322;border:1px solid #da3633;color:#da3633">
+              Risk 61
+            </span>
+          </div>
+          <div class="dev-stats">
+            <span>23 commits</span>
+            <span style="color:#da3633">10 vulns introducidas</span>
+            <span style="color:#3fb950">2 vulns fijadas</span>
+          </div>
+          <div class="dev-pattern">
+            Patrón: Thursday a las
+            16:00
+            · Vida prom: 0d
+          </div>
+          <div style="margin-top:6px"><span class="sev-pill" style="background:#da363322;border:1px solid #da3633;color:#da3633">C: 3</span> <span class="sev-pill" style="background:#388bfd22;border:1px solid #388bfd;color:#388bfd">M: 2</span> <span class="sev-pill" style="background:#e3b34122;border:1px solid #e3b341;color:#e3b341">H: 5</span></div>
+        </div></div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Predicción — Archivos en Riesgo</h2>
+    <span style="color:#8b949e;font-size:12px">probabilidad de vulnerabilidad futura basada en patrones históricos</span>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Archivo</th><th>Probabilidad</th><th>Último editor</th>
+      <th>Vulns históricas</th><th>Factores</th>
+    </tr></thead>
+    <tbody>
+        <tr>
+          <td class="mono">docx_exporter.py</td>
+          <td><div class="prob-bar"><div class="prob-fill" style="width:90%;background:#da3633"></div></div> 90%</td>
+          <td>MasterCapehart</td>
+          <td>7</td>
+          <td style="font-size:11px;color:#8b949e">• 7 vulnerabilidades históricas en este archivo<br>• Vulnerabilidad introducida hace solo 21 días</td>
+        </tr>
+        <tr>
+          <td class="mono">dashboard.py</td>
+          <td><div class="prob-bar"><div class="prob-fill" style="width:65%;background:#e3b341"></div></div> 65%</td>
+          <td>MasterCapehart</td>
+          <td>3</td>
+          <td style="font-size:11px;color:#8b949e">• 3 vulnerabilidades históricas en este archivo<br>• Vulnerabilidad introducida hace 31 días</td>
+        </tr></tbody>
+  </table>
+</div>
+
+<script>
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#21262d';
+
+new Chart(document.getElementById('timelineChart'), {
+  type: 'line',
+  data: {
+    labels: ["2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21"],
+    datasets: [{
+      label: 'Risk Score',
+      data: [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 49.0],
+      borderColor: '#da3633',
+      backgroundColor: '#da363318',
+      fill: true,
+      tension: 0.3,
+      pointRadius: 0,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 8, color: '#6e7681' }, grid: { color: '#21262d' } },
+      y: { ticks: { color: '#6e7681' }, grid: { color: '#21262d' }, beginAtZero: true }
+    }
+  }
+});
+
+new Chart(document.getElementById('sevChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ["CRITICAL", "MEDIUM", "HIGH"],
+    datasets: [{ data: [3, 2, 5], backgroundColor: ["#da3633", "#388bfd", "#e3b341"], borderWidth: 0 }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } }
+    }
+  }
+});
+</script>
+</body>
+</html>

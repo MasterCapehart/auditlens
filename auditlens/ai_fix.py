@@ -1,5 +1,5 @@
 """
-AuditLens AI Fix Engine — uses Claude API to suggest patches for findings.
+AuditLens AI Fix Engine — uses AI API to suggest patches for findings.
 
 Usage:
     auditlens fix ./project
@@ -19,7 +19,7 @@ import subprocess
 from typing import List, Optional, Tuple
 
 _SEVERITY_RANK = {'LOW': 0, 'MEDIUM': 1, 'HIGH': 2, 'CRITICAL': 3}
-_MODEL = 'claude-sonnet-4-6'
+_MODEL = 'ai-model-latest'
 _MAX_TOKENS = 1024
 
 
@@ -80,7 +80,7 @@ Be concise. Use the same language as the code (Python / JavaScript / etc.)."""
 
 
 def _extract_diff(text: str) -> Optional[str]:
-    """Extract a unified diff block from Claude's response."""
+    """Extract a unified diff block from AI response."""
     # Look for ```diff ... ``` or raw diff starting with ---
     fenced = re.search(r'```(?:diff)?\s*\n([\s\S]+?)```', text)
     if fenced:
@@ -144,14 +144,14 @@ def suggest_fix(
         import anthropic
     except ImportError:
         print(
-            '\033[91m[AuditLens AI Fix]\033[0m anthropic not installed.\n'
+            '\033[91m[AuditLens AI Fix]\033[0m AI client not installed.\n'
             'Install with: pip install anthropic --break-system-packages'
         )
         return None
 
     key = api_key or os.environ.get('ANTHROPIC_API_KEY')
     if not key:
-        print('\033[91m[AuditLens AI Fix]\033[0m ANTHROPIC_API_KEY not set.')
+        print('\033[91m[AuditLens AI Fix]\033[0m AI API key not set.')
         return None
 
     file_path = finding.get('file', '')
@@ -186,7 +186,7 @@ def run_ai_fix(
     """
     Iterate filtered findings and print/save AI fix suggestions.
 
-    With apply_patches=True: Claude generates a unified diff and it is applied
+    With apply_patches=True: AI generates a unified diff and it is applied
     directly to the source file. Use dry_run=True to preview without writing.
     """
     rank = _SEVERITY_RANK.get(min_severity.upper(), 2)
@@ -233,7 +233,7 @@ def run_ai_fix(
                 result_entry['patch_result']  = msg
                 result_entry['diff'] = diff_text
             else:
-                print('\033[93m  → No se pudo extraer un diff del output de Claude.\033[0m')
+                print('\033[93m  → No se pudo extraer un diff del output de AI.\033[0m')
                 print(suggestion)
                 result_entry['patch_applied'] = False
         else:

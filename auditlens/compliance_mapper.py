@@ -127,6 +127,110 @@ _SOC2_NAMES = {
     'A1.2':  'Availability and capacity management',
 }
 
+# ── GDPR (EU 2016/679) ────────────────────────────────────────────────────────
+_GDPR_MAP: dict = {
+    'HARDCODED':       ['Art.5', 'Art.32'],
+    'HARDCODED-PASS':  ['Art.5', 'Art.32'],
+    'HARDCODED-SECRET':['Art.5', 'Art.32'],
+    'GIT-SECRET':      ['Art.5', 'Art.32'],
+    'GIT-ENTROPY':     ['Art.5', 'Art.32'],
+    'ENTROPY-BASE64':  ['Art.32'],
+    'SSL-NOVERIFY':    ['Art.32'],
+    'WEAK-HASH':       ['Art.32'],
+    'SQLI':            ['Art.5', 'Art.32', 'Art.33'],
+    'CMD-INJECT':      ['Art.32', 'Art.33'],
+    'XSS':             ['Art.32'],
+    'DEBUG-ON':        ['Art.32'],
+    'SCA':             ['Art.32'],
+    'PII-':            ['Art.5', 'Art.25', 'Art.32', 'Art.33'],
+    'TAINT-01':        ['Art.5', 'Art.32'],
+}
+_GDPR_NAMES = {
+    'Art.5':  'Principios del tratamiento de datos personales',
+    'Art.25': 'Protección de datos desde el diseño y por defecto',
+    'Art.32': 'Seguridad del tratamiento (medidas técnicas)',
+    'Art.33': 'Notificación de violación de seguridad (72h)',
+    'Art.35': 'Evaluación de impacto relativa a la protección de datos',
+    'Art.83': 'Condiciones generales para la imposición de multas',
+}
+
+# ── HIPAA (45 CFR Parts 160, 162, 164) ───────────────────────────────────────
+_HIPAA_MAP: dict = {
+    'HARDCODED':       ['§164.312(a)', '§164.312(d)'],
+    'HARDCODED-PASS':  ['§164.312(a)', '§164.312(d)'],
+    'SSL-NOVERIFY':    ['§164.312(e)'],
+    'WEAK-HASH':       ['§164.312(a)', '§164.312(e)'],
+    'SQLI':            ['§164.306', '§164.312(c)'],
+    'PII-SALUD':       ['§164.502', '§164.514'],
+    'PII-':            ['§164.502', '§164.514'],
+    'DEBUG-ON':        ['§164.312(b)'],
+    'SCA':             ['§164.306'],
+    'TAINT-01':        ['§164.306', '§164.312(c)'],
+}
+_HIPAA_NAMES = {
+    '§164.306':    'Security standards — general rules',
+    '§164.312(a)': 'Access control',
+    '§164.312(b)': 'Audit controls',
+    '§164.312(c)': 'Integrity controls',
+    '§164.312(d)': 'Person or entity authentication',
+    '§164.312(e)': 'Transmission security',
+    '§164.502':    'Uses and disclosures of PHI',
+    '§164.514':    'De-identification of PHI',
+}
+
+# ── NIST CSF 2.0 ──────────────────────────────────────────────────────────────
+_NIST_MAP: dict = {
+    'HARDCODED':       ['PR.AC-1', 'PR.DS-1'],
+    'HARDCODED-PASS':  ['PR.AC-1', 'PR.DS-1'],
+    'GIT-SECRET':      ['PR.AC-1', 'PR.DS-5'],
+    'SSL-NOVERIFY':    ['PR.DS-2'],
+    'WEAK-HASH':       ['PR.DS-1', 'PR.DS-2'],
+    'SQLI':            ['PR.IP-1', 'DE.CM-8'],
+    'CMD-INJECT':      ['PR.IP-1', 'DE.CM-8'],
+    'XSS':             ['PR.IP-1'],
+    'SCA':             ['ID.RA-1', 'PR.IP-12'],
+    'IAC':             ['PR.IP-1'],
+    'DEBUG-ON':        ['PR.IP-1'],
+    'PII-':            ['PR.DS-1', 'PR.DS-5'],
+    'TAINT-01':        ['PR.IP-1', 'DE.CM-8'],
+    'ENTROPY-BASE64':  ['PR.DS-1'],
+}
+_NIST_NAMES = {
+    'ID.RA-1':  'Identify — Asset vulnerabilities identified',
+    'PR.AC-1':  'Protect — Identities and credentials managed',
+    'PR.DS-1':  'Protect — Data-at-rest protected',
+    'PR.DS-2':  'Protect — Data-in-transit protected',
+    'PR.DS-5':  'Protect — Data leak protections implemented',
+    'PR.IP-1':  'Protect — Baseline configuration maintained',
+    'PR.IP-12': 'Protect — Vulnerability management plan',
+    'DE.CM-8':  'Detect — Vulnerability scans performed',
+}
+
+# ── Ley 21.663 — Ley Marco de Ciberseguridad Chile (2024) ────────────────────
+_LCIB_MAP: dict = {
+    'HARDCODED':       ['Art.6', 'Art.8'],
+    'HARDCODED-PASS':  ['Art.6', 'Art.8'],
+    'GIT-SECRET':      ['Art.6', 'Art.8'],
+    'SSL-NOVERIFY':    ['Art.6'],
+    'WEAK-HASH':       ['Art.6'],
+    'SQLI':            ['Art.6', 'Art.9'],
+    'CMD-INJECT':      ['Art.6', 'Art.9'],
+    'SCA':             ['Art.6', 'Art.7'],
+    'IAC':             ['Art.6'],
+    'DEBUG-ON':        ['Art.6'],
+    'PII-':            ['Art.6', 'Art.9'],
+    'TAINT-01':        ['Art.6'],
+    'ENTROPY-BASE64':  ['Art.6'],
+}
+_LCIB_NAMES = {
+    'Art.6': 'Deberes de ciberseguridad — medidas técnicas mínimas',
+    'Art.7': 'Gestión de riesgos de ciberseguridad continua',
+    'Art.8': 'Gestión de identidades y control de acceso',
+    'Art.9': 'Notificación de incidentes a CSIRT Nacional (24h)',
+    'Art.10':'Planes de continuidad operacional',
+    'Art.28':'Infracciones y sanciones (hasta UF 20.000)',
+}
+
 
 def _lookup_compliance(rule_id: str) -> Dict[str, List[str]]:
     """Find the best matching compliance entry for a rule_id."""
@@ -168,6 +272,26 @@ def enrich_with_compliance(findings: List[dict]) -> List[dict]:
             'pci':   mapping.get('pci', []),
             'soc2':  mapping.get('soc2', []),
         }
+
+        # Enrich with GDPR / HIPAA / NIST CSF / Ley Ciberseguridad Chile
+        rule_upper = rule_id.upper()
+        for extra_map, tag_prefix in [
+            (_GDPR_MAP, 'GDPR'),
+            (_HIPAA_MAP, 'HIPAA'),
+            (_NIST_MAP, 'NIST'),
+            (_LCIB_MAP, 'LCIB'),
+        ]:
+            matched: List[str] = []
+            for key, codes in extra_map.items():
+                if rule_upper == key.upper() or rule_upper.startswith(key.upper()):
+                    matched = codes
+                    break
+            if matched:
+                f['compliance_detail'][tag_prefix.lower()] = matched
+                existing2 = set(f.get('compliance', []))
+                for c in matched:
+                    existing2.add(f'{tag_prefix}-{c}')
+                f['compliance'] = sorted(existing2)
 
     return findings
 

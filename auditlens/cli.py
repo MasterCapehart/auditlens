@@ -36,6 +36,16 @@ def main():
             '  auditlens run script.py\n'
             '  auditlens watch app.log\n'
             '  auditlens watch-xcode\n'
+            '  auditlens correlate ./proyecto --format html\n'
+            '  auditlens auto-fix ./proyecto --severity HIGH --dry-run\n'
+            '  auditlens train-ml --training-data historic_findings.json\n'
+            '  auditlens scan-distributed ./proyecto --workers 8\n'
+            '  auditlens policy validate findings.json\n'
+            '  auditlens lsp-server --port 2087\n'
+            '  auditlens predict ./proyecto --horizon 90\n'
+            '  auditlens supply-chain ./proyecto --format cyclonedx\n'
+            '  auditlens gen-tests ./proyecto --framework pytest\n'
+            '  auditlens tenant create mi-proyecto\n'
         ),
     )
     parser.add_argument('--version', action='version', version=f'auditlens {__version__}')
@@ -71,7 +81,7 @@ def main():
     sp.add_argument('--trimestre', default='primer trimestre de 2025',
                     help='Período de la auditoría.')
     sp.add_argument('--ai-fix', dest='ai_fix', action='store_true',
-                    help='Solicitar sugerencias de fix a Claude API para hallazgos HIGH+.')
+                    help='Solicitar sugerencias de fix a AI API para hallazgos HIGH+.')
     sp.add_argument('--ai-fix-severity', dest='ai_fix_severity', default='HIGH',
                     choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
                     help='Severidad mínima para AI fixes (default: HIGH).')
@@ -127,7 +137,7 @@ def main():
     subparsers.add_parser('watch-xcode', help='Monitorear logs del Simulador iOS (macOS + Xcode).')
 
     # ── fix ───────────────────────────────────────────────────────────────────
-    fp = subparsers.add_parser('fix', help='Obtener sugerencias de fix via Claude API.')
+    fp = subparsers.add_parser('fix', help='Obtener sugerencias de fix via AI API.')
     fp.add_argument('path', help='Directorio o archivo a escanear.')
     fp.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='HIGH',
                     help='Severidad mínima (default: HIGH).')
@@ -135,7 +145,7 @@ def main():
     fp.add_argument('--output', '-o', default=None, help='Guardar sugerencias en JSON.')
     fp.add_argument('--no-sca', dest='no_sca', action='store_true')
     fp.add_argument('--apply', action='store_true',
-                    help='Aplicar parches directamente al código fuente (usa Claude para generar diffs).')
+                    help='Aplicar parches directamente al código fuente (usa AI para generar diffs).')
     fp.add_argument('--dry-run', dest='dry_run', action='store_true',
                     help='Simular aplicación de parches sin modificar archivos (requiere --apply).')
 
@@ -262,10 +272,10 @@ def main():
                      help='Nombre del proyecto para el SBOM.')
 
     # ── threat-model ──────────────────────────────────────────────────────────
-    tmp = subparsers.add_parser('threat-model', help='Generar modelo de amenazas STRIDE con Claude AI.')
+    tmp = subparsers.add_parser('threat-model', help='Generar modelo de amenazas STRIDE con AI.')
     tmp.add_argument('path', help='Ruta del proyecto a modelar.')
     tmp.add_argument('--output', '-o', default=None, help='Guardar modelo en JSON.')
-    tmp.add_argument('--model', default='claude-sonnet-4-6', help='Modelo Claude a usar.')
+    tmp.add_argument('--model', default='ai-model-latest', help='Modelo AI a usar.')
 
     # ── aws-audit ─────────────────────────────────────────────────────────────
     awsp = subparsers.add_parser('aws-audit', help='Auditar cuenta AWS (IAM, S3, Security Groups, CloudTrail).')
@@ -322,11 +332,37 @@ def main():
     # ── compliance ────────────────────────────────────────────────────────────
     comp_p = subparsers.add_parser(
         'compliance',
-        help='Generar reporte de compliance (OWASP, CWE, PCI-DSS, SOC 2) a partir de hallazgos JSON.',
+        help='Reporte compliance multi-framework (OWASP, CWE, PCI-DSS, SOC 2, GDPR, HIPAA, NIST, ISO 27001, CMF).',
     )
     comp_p.add_argument('findings', help='Archivo JSON de hallazgos (output de auditlens scan --format json).')
     comp_p.add_argument('--format', choices=['text', 'html', 'json'], default='text')
     comp_p.add_argument('--output', '-o', default=None)
+    comp_p.add_argument(
+        '--frameworks', nargs='+',
+        choices=['owasp', 'iso27001', 'cmf', 'gdpr', 'hipaa', 'nist', 'lcib', 'all'],
+        default=['all'],
+        help='Frameworks a incluir (default: all).',
+    )
+
+    # ── iso27001 ──────────────────────────────────────────────────────────────
+    iso_p = subparsers.add_parser('iso27001', help='Auditoría ISO 27001:2022 — score + reporte de controles.')
+    iso_p.add_argument('path', help='Directorio del proyecto.')
+    iso_p.add_argument('--empresa', default='Empresa')
+    iso_p.add_argument('--auditor', default='')
+    iso_p.add_argument('--format', choices=['text', 'html', 'json'], default='text')
+    iso_p.add_argument('--output', '-o', default=None)
+    iso_p.add_argument('--no-sca', dest='no_sca', action='store_true')
+    iso_p.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='LOW')
+
+    # ── cmf ───────────────────────────────────────────────────────────────────
+    cmf_p = subparsers.add_parser('cmf', help='Auditoría CMF Circular 57 / Norma 461 (Chile).')
+    cmf_p.add_argument('path', help='Directorio del proyecto.')
+    cmf_p.add_argument('--empresa', default='Empresa')
+    cmf_p.add_argument('--auditor', default='')
+    cmf_p.add_argument('--format', choices=['text', 'html', 'json'], default='text')
+    cmf_p.add_argument('--output', '-o', default=None)
+    cmf_p.add_argument('--no-sca', dest='no_sca', action='store_true')
+    cmf_p.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='LOW')
 
     # ── archaeology ───────────────────────────────────────────────────────────
     archp = subparsers.add_parser(
@@ -351,6 +387,120 @@ def main():
         help='Mostrar detalles de cada commit analizado.',
     )
 
+    # ── gcp-audit ─────────────────────────────────────────────────────────────
+    gcpp = subparsers.add_parser('gcp-audit', help='Auditar cuenta GCP (IAM, Storage, Firewall, CloudSQL).')
+    gcpp.add_argument('--project', required=True, help='ID del proyecto GCP.')
+    gcpp.add_argument('--format', choices=['text', 'json', 'html', 'xlsx'], default='text')
+    gcpp.add_argument('--output', '-o', default=None)
+
+    # ── azure-audit ───────────────────────────────────────────────────────────
+    azp = subparsers.add_parser('azure-audit', help='Auditar suscripción Azure (IAM, Storage, NSG, Key Vault, App Service).')
+    azp.add_argument('--subscription', default=None, help='Subscription ID (opcional).')
+    azp.add_argument('--format', choices=['text', 'json', 'html', 'xlsx'], default='text')
+    azp.add_argument('--output', '-o', default=None)
+
+    # ── graphql-scan ──────────────────────────────────────────────────────────
+    gqlp = subparsers.add_parser('graphql-scan', help='Auditar API GraphQL (introspection, batching, depth). Requiere autorización.')
+    gqlp.add_argument('endpoint', help='URL del endpoint GraphQL.')
+    gqlp.add_argument('--authorized', action='store_true', required=True,
+                      help='OBLIGATORIO: confirma autorización para escanear.')
+    gqlp.add_argument('--token', default=None, help='Bearer token de autenticación.')
+    gqlp.add_argument('--no-verify-ssl', dest='no_verify_ssl', action='store_true')
+    gqlp.add_argument('--format', choices=['text', 'json'], default='text')
+    gqlp.add_argument('--output', '-o', default=None)
+
+    # ── yara-scan ─────────────────────────────────────────────────────────────
+    yara_p = subparsers.add_parser('yara-scan', help='Detectar malware, webshells y backdoors en código fuente.')
+    yara_p.add_argument('path', help='Directorio a escanear.')
+    yara_p.add_argument('--format', choices=['text', 'json', 'html'], default='text')
+    yara_p.add_argument('--output', '-o', default=None)
+
+    # ── heatmap ───────────────────────────────────────────────────────────────
+    hmap_p = subparsers.add_parser('heatmap', help='Generar risk heatmap + compliance radar chart.')
+    hmap_p.add_argument('findings', help='Archivo JSON de hallazgos.')
+    hmap_p.add_argument('--output', '-o', default='risk_heatmap.html')
+    hmap_p.add_argument('--radar', default='compliance_radar.html', help='Ruta del radar chart.')
+
+    # ── headers-check ────────────────────────────────────────────────────────
+    hdr_p = subparsers.add_parser('headers-check', help='Auditar HTTP security headers, CORS y TLS de una URL.')
+    hdr_p.add_argument('url', help='URL a analizar (ej: https://empresa.com).')
+    hdr_p.add_argument('--no-verify-ssl', dest='no_verify_ssl', action='store_true')
+    hdr_p.add_argument('--format', choices=['text', 'json', 'html'], default='text')
+    hdr_p.add_argument('--output', '-o', default=None)
+
+    # ── k8s-audit ─────────────────────────────────────────────────────────────
+    k8sp = subparsers.add_parser('k8s-audit', help='Auditar manifiestos Kubernetes (RBAC, privilegios, secrets, network).')
+    k8sp.add_argument('path', help='Directorio con manifiestos YAML de Kubernetes.')
+    k8sp.add_argument('--format', choices=['text', 'json', 'html', 'xlsx'], default='text')
+    k8sp.add_argument('--output', '-o', default=None)
+
+    # ── ai-summary ────────────────────────────────────────────────────────────
+    ais_p = subparsers.add_parser('ai-summary', help='Generar resumen ejecutivo + análisis de brecha con AI.')
+    ais_p.add_argument('findings', help='Archivo JSON de hallazgos.')
+    ais_p.add_argument('--empresa', default='Empresa')
+    ais_p.add_argument('--framework', default=None,
+                       choices=['ley21719', 'iso27001', 'cmf', 'gdpr', 'hipaa', 'nist', 'pci'],
+                       help='Framework para análisis de brecha.')
+    ais_p.add_argument('--mode', choices=['all', 'executive', 'gap', 'remediation'], default='all')
+    ais_p.add_argument('--output', '-o', default=None)
+
+    # ── propuesta ────────────────────────────────────────────────────────────
+    prop_p = subparsers.add_parser('propuesta', help='Generar propuesta comercial + contrato de auditoría (Word).')
+    prop_p.add_argument('path', help='Directorio del proyecto a cotizar.')
+    prop_p.add_argument('--cliente', default='Empresa Cliente', help='Nombre del cliente.')
+    prop_p.add_argument('--rut-cliente', dest='rut_cliente', default='')
+    prop_p.add_argument('--contacto', default='')
+    prop_p.add_argument('--auditora', default='AuditLens Security', help='Nombre empresa auditora.')
+    prop_p.add_argument('--auditor', default='')
+    prop_p.add_argument('--rut-auditor', dest='rut_auditor', default='')
+    prop_p.add_argument('--frameworks', nargs='+', default=['sast', 'sca', 'ley21719'],
+                        help='Frameworks a incluir: sast sca ley21719 iso27001 cmf gdpr hipaa pci dast git')
+    prop_p.add_argument('--output', '-o', default=None)
+    prop_p.add_argument('--no-contrato', dest='no_contrato', action='store_true')
+
+    # ── track ─────────────────────────────────────────────────────────────────
+    trk_p = subparsers.add_parser('track', help='Comparar dos scans y reportar progreso de remediación.')
+    trk_p.add_argument('baseline', help='JSON de hallazgos de la auditoría anterior.')
+    trk_p.add_argument('current', help='JSON de hallazgos actuales.')
+    trk_p.add_argument('--format', choices=['text', 'html', 'json'], default='text')
+    trk_p.add_argument('--output', '-o', default=None)
+
+    # ── jwt-scan ──────────────────────────────────────────────────────────────
+    jwt_p = subparsers.add_parser('jwt-scan', help='Detectar vulnerabilidades JWT en código fuente.')
+    jwt_p.add_argument('path', help='Directorio o archivo a escanear.')
+    jwt_p.add_argument('--format', choices=['text', 'json', 'html'], default='text')
+    jwt_p.add_argument('--output', '-o', default=None)
+
+    # ── ci-setup ──────────────────────────────────────────────────────────────
+    ci_p = subparsers.add_parser('ci-setup', help='Generar templates CI/CD (GitHub Actions, GitLab, Azure DevOps, etc.).')
+    ci_p.add_argument('path', nargs='?', default='.', help='Directorio del proyecto (default: .).')
+    ci_p.add_argument(
+        '--platform', choices=['github', 'gitlab', 'azure', 'bitbucket', 'makefile', 'precommit', 'all'],
+        default='all', help='Plataforma CI (default: all — genera todos).',
+    )
+    ci_p.add_argument('--output', '-o', default=None, help='Ruta de salida (solo para plataforma única).')
+
+    # ── ley21719 ──────────────────────────────────────────────────────────────
+    ley_p = subparsers.add_parser(
+        'ley21719',
+        help='Auditoría de cumplimiento Ley 21.719 — Protección de Datos Personales (Chile).',
+    )
+    ley_p.add_argument('path', help='Directorio del proyecto a auditar.')
+    ley_p.add_argument('--empresa', default='Empresa', help='Nombre de la empresa auditada.')
+    ley_p.add_argument('--rut-empresa', dest='rut_empresa', default='', help='RUT de la empresa.')
+    ley_p.add_argument('--auditor', default='', help='Nombre del auditor.')
+    ley_p.add_argument('--rut-auditor', dest='rut_auditor', default='', help='RUT del auditor.')
+    ley_p.add_argument(
+        '--format', choices=['text', 'html', 'docx', 'json', 'all'], default='all',
+        help='Formato de salida: all=genera HTML+docx (default), text=solo terminal.',
+    )
+    ley_p.add_argument('--output', '-o', default=None,
+                       help='Nombre base de los archivos de salida (sin extensión).')
+    ley_p.add_argument('--no-sca', dest='no_sca', action='store_true',
+                       help='Omitir SCA en el análisis estático.')
+    ley_p.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='LOW',
+                       help='Severidad mínima para hallazgos SAST (default: LOW).')
+
     # ── schedule ──────────────────────────────────────────────────────────────
     sched_p = subparsers.add_parser('schedule', help='Gestionar escaneos programados (cron).')
     sched_sub = sched_p.add_subparsers(dest='sched_command')
@@ -369,6 +519,95 @@ def main():
     sched_rm.add_argument('id', help='ID del escaneo a eliminar.')
 
     sched_sub.add_parser('run-pending', help='Ejecutar escaneos pendientes (llamado por cron).')
+
+    # ── correlate ─────────────────────────────────────────────────────────────
+    corr_p = subparsers.add_parser('correlate', help='Analizar cadenas de ataque y correlación de hallazgos.')
+    corr_p.add_argument('path', help='Directorio del proyecto.')
+    corr_p.add_argument('--format', choices=['json', 'html'], default='json',
+                        help='Formato de salida (default: json).')
+    corr_p.add_argument('--output', '-o', default=None)
+
+    # ── auto-fix ──────────────────────────────────────────────────────────────
+    autofix_p = subparsers.add_parser('auto-fix', help='Remediación automatizada de hallazgos.')
+    autofix_p.add_argument('path', help='Directorio del proyecto.')
+    autofix_p.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='MEDIUM',
+                           help='Severidad mínima para auto-fix (default: MEDIUM).')
+    autofix_p.add_argument('--dry-run', dest='dry_run', action='store_true',
+                           help='Simular sin modificar archivos.')
+    autofix_p.add_argument('--output', '-o', default=None, help='Guardar reporte en JSON.')
+
+    # ── train-ml ──────────────────────────────────────────────────────────────
+    trainml_p = subparsers.add_parser('train-ml', help='Entrenar clasificador ML de falsos positivos.')
+    trainml_p.add_argument('--training-data', dest='training_data', required=True,
+                           help='Path a JSON con históricos de hallazgos etiquetados.')
+    trainml_p.add_argument('--output', '-o', default='fp_classifier.pkl',
+                           help='Ruta del modelo entrenado (default: fp_classifier.pkl).')
+
+    # ── scan-distributed ──────────────────────────────────────────────────────
+    distrib_p = subparsers.add_parser('scan-distributed', help='Escaneo paralelo con workers distribuidos.')
+    distrib_p.add_argument('path', help='Directorio del proyecto.')
+    distrib_p.add_argument('--workers', type=int, default=4,
+                           help='Número de workers paralelos (default: 4).')
+    distrib_p.add_argument('--format', choices=['text', 'json', 'html'], default='text')
+    distrib_p.add_argument('--output', '-o', default=None)
+    distrib_p.add_argument('--severity', choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], default='LOW')
+
+    # ── policy ────────────────────────────────────────────────────────────────
+    policy_p = subparsers.add_parser('policy', help='Gestión de políticas de seguridad.')
+    policy_sub = policy_p.add_subparsers(dest='policy_command')
+
+    policy_sub.add_parser('list', help='Listar políticas disponibles.')
+
+    pol_val = policy_sub.add_parser('validate', help='Validar hallazgos contra políticas.')
+    pol_val.add_argument('findings', help='Archivo JSON de hallazgos.')
+    pol_val.add_argument('--policy', default=None, help='Path a archivo de política personalizada.')
+
+    pol_test = policy_sub.add_parser('test', help='Probar una política sin aplicarla.')
+    pol_test.add_argument('policy', help='Path a archivo de política.')
+    pol_test.add_argument('--sample', default=None, help='JSON de hallazgos de prueba.')
+
+    # ── lsp-server ────────────────────────────────────────────────────────────
+    lsp_p = subparsers.add_parser('lsp-server', help='Iniciar LSP server para integración IDE.')
+    lsp_p.add_argument('--port', type=int, default=2087,
+                       help='Puerto del servidor LSP (default: 2087).')
+    lsp_p.add_argument('--stdio', action='store_true',
+                       help='Usar stdio en lugar de socket TCP.')
+
+    # ── predict ───────────────────────────────────────────────────────────────
+    pred_p = subparsers.add_parser('predict', help='Dashboard predictivo de compliance y riesgos.')
+    pred_p.add_argument('path', help='Directorio del proyecto.')
+    pred_p.add_argument('--output', '-o', default='predictive_dashboard.html',
+                        help='Ruta del dashboard HTML (default: predictive_dashboard.html).')
+    pred_p.add_argument('--horizon', type=int, default=90,
+                        help='Días futuros a predecir (default: 90).')
+
+    # ── supply-chain ──────────────────────────────────────────────────────────
+    sc_p = subparsers.add_parser('supply-chain', help='Análisis de cadena de suministro (SBOM + vulnerabilidades).')
+    sc_p.add_argument('path', help='Directorio del proyecto.')
+    sc_p.add_argument('--output', '-o', default='supply_chain_report.json',
+                      help='Ruta del reporte SBOM (default: supply_chain_report.json).')
+    sc_p.add_argument('--format', choices=['json', 'html', 'cyclonedx'], default='json')
+
+    # ── gen-tests ─────────────────────────────────────────────────────────────
+    gentest_p = subparsers.add_parser('gen-tests', help='Generar tests de seguridad automatizados.')
+    gentest_p.add_argument('path', help='Directorio del proyecto.')
+    gentest_p.add_argument('--output-dir', dest='output_dir', default='./security_tests',
+                           help='Directorio de salida para tests (default: ./security_tests).')
+    gentest_p.add_argument('--framework', choices=['pytest', 'unittest', 'jest'], default='pytest',
+                           help='Framework de testing (default: pytest).')
+
+    # ── tenant ────────────────────────────────────────────────────────────────
+    tenant_p = subparsers.add_parser('tenant', help='Gestión multi-tenant (aislamiento de escaneos).')
+    tenant_sub = tenant_p.add_subparsers(dest='tenant_command')
+
+    ten_create = tenant_sub.add_parser('create', help='Crear nuevo tenant.')
+    ten_create.add_argument('name', help='Nombre del tenant.')
+    ten_create.add_argument('--description', default='', help='Descripción del tenant.')
+
+    tenant_sub.add_parser('list', help='Listar tenants existentes.')
+
+    ten_del = tenant_sub.add_parser('delete', help='Eliminar un tenant.')
+    ten_del.add_argument('name', help='Nombre del tenant a eliminar.')
 
     args = parser.parse_args()
 
@@ -499,11 +738,86 @@ def main():
     elif args.command == 'compliance':
         _run_compliance_command(args)
 
+    elif args.command == 'iso27001':
+        _run_iso27001_command(args)
+
+    elif args.command == 'cmf':
+        _run_cmf_command(args)
+
     elif args.command == 'archaeology':
         _run_archaeology_command(args)
 
+    elif args.command == 'gcp-audit':
+        _run_gcp_audit_command(args)
+
+    elif args.command == 'azure-audit':
+        _run_azure_audit_command(args)
+
+    elif args.command == 'graphql-scan':
+        _run_graphql_scan_command(args)
+
+    elif args.command == 'yara-scan':
+        _run_yara_scan_command(args)
+
+    elif args.command == 'heatmap':
+        _run_heatmap_command(args)
+
+    elif args.command == 'headers-check':
+        _run_headers_check_command(args)
+
+    elif args.command == 'k8s-audit':
+        _run_k8s_audit_command(args)
+
+    elif args.command == 'ai-summary':
+        _run_ai_summary_command(args)
+
+    elif args.command == 'propuesta':
+        _run_propuesta_command(args)
+
+    elif args.command == 'track':
+        _run_track_command(args)
+
+    elif args.command == 'jwt-scan':
+        _run_jwt_scan_command(args)
+
+    elif args.command == 'ci-setup':
+        _run_ci_setup_command(args)
+
+    elif args.command == 'ley21719':
+        _run_ley21719_command(args)
+
     elif args.command == 'schedule':
         _run_schedule_command(args)
+
+    elif args.command == 'correlate':
+        _run_correlate_command(args)
+
+    elif args.command == 'auto-fix':
+        _run_auto_fix_command(args)
+
+    elif args.command == 'train-ml':
+        _run_train_ml_command(args)
+
+    elif args.command == 'scan-distributed':
+        _run_scan_distributed_command(args)
+
+    elif args.command == 'policy':
+        _run_policy_command(args)
+
+    elif args.command == 'lsp-server':
+        _run_lsp_server_command(args)
+
+    elif args.command == 'predict':
+        _run_predict_command(args)
+
+    elif args.command == 'supply-chain':
+        _run_supply_chain_command(args)
+
+    elif args.command == 'gen-tests':
+        _run_gen_tests_command(args)
+
+    elif args.command == 'tenant':
+        _run_tenant_command(args)
 
     else:
         parser.print_help()
@@ -1038,6 +1352,381 @@ def _run_archaeology_command(args):
     sys.exit(1 if open_vulns > 0 else 0)
 
 
+def _run_ley21719_command(args):
+    """Execute 'auditlens ley21719' — full Ley 21.719 compliance audit."""
+    import json as _json
+    import os
+
+    from .pii_detector import scan_directory_for_pii
+    from .ley21719_mapper import enrich_with_ley21719, calculate_compliance_score, print_ley21719_summary
+
+    path    = args.path
+    empresa = getattr(args, 'empresa', 'Empresa')
+    fmt     = getattr(args, 'format', 'all')
+    out_base = getattr(args, 'output', None) or f'ley21719_{empresa.replace(" ", "_")}'
+
+    print(f'\n\033[1m\033[94m[AuditLens] Auditoría Ley 21.719 — {empresa}\033[0m')
+    print(f'\033[90mProyecto: {os.path.abspath(path)}\033[0m\n')
+
+    # Step 1 — PII scan
+    pii_findings = scan_directory_for_pii(path)
+
+    # Step 2 — Static analysis
+    print('\033[94m[AuditLens]\033[0m Ejecutando análisis estático SAST...')
+    from .rules_engine import RulesEngine
+    from .taint_analyzer import TaintAnalyzer
+    from .analyzer import analyze_file, _SUPPORTED_EXTENSIONS
+
+    sast_findings: list = []
+    rules_engine = RulesEngine()
+    taint_analyzer = TaintAnalyzer()
+    exclude_dirs = {'venv', '.venv', 'env', 'node_modules', '.git', '__pycache__', 'build', 'dist'}
+
+    if os.path.isfile(path):
+        analyze_file(path, rules_engine, taint_analyzer,
+                     min_severity=getattr(args, 'severity', 'LOW'),
+                     all_findings_accumulator=sast_findings)
+    else:
+        for dirpath, dirnames, files in os.walk(path):
+            dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
+            for fname in files:
+                ext = os.path.splitext(fname)[1].lower()
+                if ext in _SUPPORTED_EXTENSIONS or fname.lower().startswith('dockerfile'):
+                    analyze_file(os.path.join(dirpath, fname), rules_engine, taint_analyzer,
+                                 min_severity=getattr(args, 'severity', 'LOW'),
+                                 all_findings_accumulator=sast_findings)
+
+    # Step 3 — SCA (unless disabled)
+    sca_findings: list = []
+    if not getattr(args, 'no_sca', False):
+        try:
+            from .sca import run_sca
+            sca_findings = run_sca(path) or []
+        except Exception:
+            pass
+
+    all_findings = pii_findings + sast_findings + sca_findings
+
+    # Step 4 — Enrich with Ley 21.719 articles
+    all_findings = enrich_with_ley21719(all_findings)
+
+    # Step 5 — Calculate score
+    score_data = calculate_compliance_score(all_findings)
+
+    # Step 6 — Output
+    if fmt in ('text', 'all'):
+        print_ley21719_summary(score_data, all_findings)
+
+    if fmt in ('json', 'all'):
+        json_out = f'{out_base}.json'
+        with open(json_out, 'w', encoding='utf-8') as fh:
+            _json.dump({
+                'score_data': score_data,
+                'findings': all_findings,
+                'empresa': empresa,
+                'rut_empresa': getattr(args, 'rut_empresa', ''),
+                'auditor': getattr(args, 'auditor', ''),
+            }, fh, indent=2, default=str)
+        print(f'\033[92m[AuditLens Ley 21.719]\033[0m JSON guardado: {json_out}')
+
+    if fmt in ('html', 'all'):
+        from .ley21719_reporter import generate_ley21719_html
+        html_out = f'{out_base}.html'
+        generate_ley21719_html(
+            findings=all_findings,
+            score_data=score_data,
+            output_path=html_out,
+            empresa=empresa,
+            rut_empresa=getattr(args, 'rut_empresa', ''),
+            auditor=getattr(args, 'auditor', ''),
+        )
+
+    if fmt in ('docx', 'all'):
+        from .ley21719_reporter import generate_ley21719_docx
+        docx_out = f'{out_base}.docx'
+        generate_ley21719_docx(
+            findings=all_findings,
+            score_data=score_data,
+            output_path=docx_out,
+            empresa=empresa,
+            rut_empresa=getattr(args, 'rut_empresa', ''),
+            auditor=getattr(args, 'auditor', ''),
+            rut_auditor=getattr(args, 'rut_auditor', ''),
+        )
+
+    score = score_data['score']
+    sys.exit(0 if score >= 70 else 1)
+
+
+def _run_gcp_audit_command(args):
+    import json as _json
+    from .gcp_auditor import audit_gcp
+    findings = audit_gcp(args.project)
+    _output_findings(findings, args, 'gcp_audit')
+
+
+def _run_azure_audit_command(args):
+    import json as _json
+    from .azure_auditor import audit_azure
+    findings = audit_azure(getattr(args, 'subscription', None))
+    _output_findings(findings, args, 'azure_audit')
+
+
+def _run_graphql_scan_command(args):
+    import json as _json, os
+    from .graphql_scanner import scan_graphql
+    token = getattr(args, 'token', None) or os.environ.get('AUTH_TOKEN')
+    findings = scan_graphql(args.endpoint, token=token, verify_ssl=not getattr(args, 'no_verify_ssl', False))
+    _output_findings(findings, args, 'graphql_findings')
+
+
+def _run_yara_scan_command(args):
+    from .yara_scanner import scan_directory_for_malware, scan_file_for_malware
+    import os
+    if os.path.isfile(args.path):
+        findings = scan_file_for_malware(args.path)
+    else:
+        findings = scan_directory_for_malware(args.path)
+    _output_findings(findings, args, 'yara_findings')
+    sys.exit(1 if findings else 0)
+
+
+def _run_heatmap_command(args):
+    import json as _json
+    from .risk_heatmap import generate_risk_heatmap_html, generate_compliance_radar_html
+    with open(args.findings, encoding='utf-8') as fh:
+        data = _json.load(fh)
+    findings = data if isinstance(data, list) else data.get('findings', [])
+    out  = getattr(args, 'output', 'risk_heatmap.html')
+    radar = getattr(args, 'radar', 'compliance_radar.html')
+    generate_risk_heatmap_html(findings, out)
+    generate_compliance_radar_html(findings, radar)
+    sys.exit(0)
+
+
+def _output_findings(findings, args, default_name: str):
+    """Generic output helper for commands that produce findings."""
+    import json as _json
+    fmt = getattr(args, 'format', 'text')
+    out = getattr(args, 'output', None)
+    if fmt == 'json' or (out and str(out).endswith('.json')):
+        out = out or f'{default_name}.json'
+        with open(out, 'w', encoding='utf-8') as fh:
+            _json.dump(findings, fh, indent=2, default=str)
+        print(f'\033[92m[AuditLens]\033[0m JSON: {out}')
+    elif fmt == 'html' or (out and str(out).endswith('.html')):
+        from .html_exporter import generate_html_report
+        generate_html_report(findings, scan_path='', output_path=out or f'{default_name}.html')
+    elif fmt == 'xlsx' or (out and str(out).endswith('.xlsx')):
+        from .xlsx_exporter import generate_xlsx_report
+        generate_xlsx_report(findings, scan_path='', output_path=out or f'{default_name}.xlsx')
+    else:
+        for f in findings:
+            sev = f.get('severity', 'LOW')
+            col = '\033[91m' if sev in ('CRITICAL','HIGH') else '\033[93m' if sev=='MEDIUM' else '\033[90m'
+            print(f'{col}[{f.get("rule_id","")}]\033[0m {f.get("file","").split("/")[-1]}:{f.get("line","")} — {f.get("name","")}')
+    sys.exit(1 if any(f.get('severity') in ('CRITICAL','HIGH') for f in findings) else 0)
+
+
+def _run_headers_check_command(args):
+    import json as _json
+    from .headers_checker import check_headers, print_headers_summary
+    findings = check_headers(args.url, verify_ssl=not getattr(args, 'no_verify_ssl', False))
+    fmt = getattr(args, 'format', 'text')
+    out = getattr(args, 'output', None)
+    if fmt == 'json' or (out and out.endswith('.json')):
+        with open(out or 'headers_findings.json', 'w') as fh:
+            _json.dump(findings, fh, indent=2)
+    else:
+        print_headers_summary(findings, args.url)
+    sys.exit(1 if any(f.get('severity') in ('CRITICAL', 'HIGH') for f in findings) else 0)
+
+
+def _run_k8s_audit_command(args):
+    import json as _json
+    from .k8s_auditor import scan_k8s_manifests
+    findings = scan_k8s_manifests(args.path)
+    fmt = getattr(args, 'format', 'text')
+    out = getattr(args, 'output', None)
+    if fmt == 'json' or (out and out.endswith('.json')):
+        with open(out or 'k8s_findings.json', 'w') as fh:
+            _json.dump(findings, fh, indent=2)
+    elif fmt == 'html' or (out and out.endswith('.html')):
+        from .html_exporter import generate_html_report
+        generate_html_report(findings, scan_path=args.path, output_path=out or 'k8s_report.html')
+    elif fmt == 'xlsx' or (out and out.endswith('.xlsx')):
+        from .xlsx_exporter import generate_xlsx_report
+        generate_xlsx_report(findings, scan_path=args.path, output_path=out or 'k8s_report.xlsx')
+    else:
+        for f in findings:
+            sev = f.get('severity', 'LOW')
+            col = '\033[91m' if sev in ('CRITICAL','HIGH') else '\033[93m'
+            print(f'{col}[{f["rule_id"]}]\033[0m {f["file"]}:{f["line"]} — {f["name"]}')
+    sys.exit(1 if any(f.get('severity') in ('CRITICAL', 'HIGH') for f in findings) else 0)
+
+
+def _run_ai_summary_command(args):
+    import json as _json
+    from .ai_summary import run_ai_summary
+    with open(args.findings, encoding='utf-8') as fh:
+        data = _json.load(fh)
+    findings   = data if isinstance(data, list) else data.get('findings', data.get('results', []))
+    score_data = data.get('score_data') if isinstance(data, dict) else None
+    run_ai_summary(
+        findings=findings,
+        score_data=score_data,
+        empresa=getattr(args, 'empresa', 'Empresa'),
+        framework=getattr(args, 'framework', None),
+        output_path=getattr(args, 'output', None),
+        mode=getattr(args, 'mode', 'all'),
+    )
+    sys.exit(0)
+
+
+def _run_propuesta_command(args):
+    from .proposal_generator import generate_proposal_docx
+    out = getattr(args, 'output', None) or f'propuesta_{args.cliente.replace(" ","_")}.docx'
+    generate_proposal_docx(
+        project_path=args.path,
+        output_path=out,
+        empresa_cliente=args.cliente,
+        rut_cliente=getattr(args, 'rut_cliente', ''),
+        contacto_cliente=getattr(args, 'contacto', ''),
+        empresa_auditora=getattr(args, 'auditora', 'AuditLens Security'),
+        auditor=getattr(args, 'auditor', ''),
+        rut_auditor=getattr(args, 'rut_auditor', ''),
+        frameworks=getattr(args, 'frameworks', ['sast', 'sca', 'ley21719']),
+        incluir_contrato=not getattr(args, 'no_contrato', False),
+    )
+    sys.exit(0)
+
+
+def _run_track_command(args):
+    import json as _json
+    from .remediation_tracker import compare_findings, print_remediation_summary, generate_tracker_html
+    with open(args.baseline, encoding='utf-8') as fh:
+        baseline = _json.load(fh)
+    with open(args.current, encoding='utf-8') as fh:
+        current = _json.load(fh)
+    result = compare_findings(baseline, current)
+    fmt = getattr(args, 'format', 'text')
+    out = getattr(args, 'output', None)
+    if fmt == 'html' or (out and out.endswith('.html')):
+        generate_tracker_html(result, out or 'remediation_tracker.html')
+    elif fmt == 'json' or (out and out.endswith('.json')):
+        with open(out or 'remediation_tracker.json', 'w') as fh:
+            _json.dump(result, fh, indent=2, default=str)
+    else:
+        print_remediation_summary(result)
+    sys.exit(0)
+
+
+def _run_jwt_scan_command(args):
+    import json as _json, os
+    from .jwt_auditor import scan_directory_for_jwt_issues, scan_file_for_jwt_issues
+    if os.path.isfile(args.path):
+        findings = scan_file_for_jwt_issues(args.path)
+    else:
+        findings = scan_directory_for_jwt_issues(args.path)
+    fmt = getattr(args, 'format', 'text')
+    out = getattr(args, 'output', None)
+    if not findings:
+        print('\033[92m[AuditLens JWT]\033[0m No se detectaron vulnerabilidades JWT.')
+        sys.exit(0)
+    if fmt == 'json' or (out and out.endswith('.json')):
+        with open(out or 'jwt_findings.json', 'w') as fh:
+            _json.dump(findings, fh, indent=2)
+    else:
+        for f in findings:
+            sev = f.get('severity','LOW')
+            col = '\033[91m' if sev == 'CRITICAL' else '\033[93m' if sev == 'HIGH' else '\033[94m'
+            print(f'{col}[{f["rule_id"]}] {f["file"]}:{f["line"]} — {f["name"]}\033[0m')
+            print(f'   \033[90m{f["description"][:100]}\033[0m')
+    sys.exit(1 if any(f.get('severity') in ('CRITICAL','HIGH') for f in findings) else 0)
+
+
+def _run_ci_setup_command(args):
+    from .ci_templates import generate_ci_template, generate_all_templates
+    platform = getattr(args, 'platform', 'all')
+    path     = getattr(args, 'path', '.')
+    out      = getattr(args, 'output', None)
+    if platform == 'all':
+        files = generate_all_templates(path)
+        print(f'\033[92m[AuditLens CI]\033[0m {len(files)} templates generados en {path}')
+    else:
+        generate_ci_template(platform, path, out)
+    sys.exit(0)
+
+
+def _run_iso27001_command(args):
+    """Execute 'auditlens iso27001' — ISO 27001:2022 compliance audit."""
+    import json as _json, os
+    from .iso27001_mapper import enrich_with_iso27001, calculate_iso_score, print_iso_summary
+    findings = _collect_findings(args)
+    findings = enrich_with_iso27001(findings)
+    score_data = calculate_iso_score(findings)
+    fmt = getattr(args, 'format', 'text')
+    out = getattr(args, 'output', None)
+    print_iso_summary(score_data)
+    if fmt == 'json' or (out and out.endswith('.json')):
+        out = out or 'iso27001_report.json'
+        with open(out, 'w', encoding='utf-8') as fh:
+            _json.dump({'score_data': score_data, 'findings': findings}, fh, indent=2, default=str)
+        print(f'\033[92m[AuditLens ISO 27001]\033[0m JSON guardado: {out}')
+    sys.exit(0 if score_data['score'] >= 70 else 1)
+
+
+def _run_cmf_command(args):
+    """Execute 'auditlens cmf' — CMF Circular 57 / Norma 461 audit."""
+    import json as _json, os
+    from .cmf_mapper import enrich_with_cmf, calculate_cmf_score, print_cmf_summary
+    findings = _collect_findings(args)
+    findings = enrich_with_cmf(findings)
+    score_data = calculate_cmf_score(findings)
+    fmt = getattr(args, 'format', 'text')
+    out = getattr(args, 'output', None)
+    print_cmf_summary(score_data)
+    if fmt == 'json' or (out and out.endswith('.json')):
+        out = out or 'cmf_report.json'
+        with open(out, 'w', encoding='utf-8') as fh:
+            _json.dump({'score_data': score_data, 'findings': findings}, fh, indent=2, default=str)
+        print(f'\033[92m[AuditLens CMF]\033[0m JSON guardado: {out}')
+    sys.exit(0 if score_data['score'] >= 70 else 1)
+
+
+def _collect_findings(args) -> list:
+    """Shared helper: run SAST+SCA on args.path and return findings list."""
+    import os
+    from .rules_engine import RulesEngine
+    from .taint_analyzer import TaintAnalyzer
+    from .analyzer import analyze_file, _SUPPORTED_EXTENSIONS
+    findings: list = []
+    rules_engine = RulesEngine()
+    taint_analyzer = TaintAnalyzer()
+    exclude = {'venv', '.venv', 'env', 'node_modules', '.git', '__pycache__', 'build', 'dist'}
+    path = args.path
+    if os.path.isfile(path):
+        analyze_file(path, rules_engine, taint_analyzer,
+                     min_severity=getattr(args, 'severity', 'LOW'),
+                     all_findings_accumulator=findings)
+    else:
+        for dirpath, dirnames, files in os.walk(path):
+            dirnames[:] = [d for d in dirnames if d not in exclude]
+            for fname in files:
+                ext = os.path.splitext(fname)[1].lower()
+                if ext in _SUPPORTED_EXTENSIONS or fname.lower().startswith('dockerfile'):
+                    analyze_file(os.path.join(dirpath, fname), rules_engine, taint_analyzer,
+                                 min_severity=getattr(args, 'severity', 'LOW'),
+                                 all_findings_accumulator=findings)
+    if not getattr(args, 'no_sca', False):
+        try:
+            from .sca import run_sca
+            findings += run_sca(path) or []
+        except Exception:
+            pass
+    return findings
+
+
 def _run_schedule_command(args):
     from .scheduler import add_schedule, list_schedules, remove_schedule, run_pending_schedules
     cmd = getattr(args, 'sched_command', None)
@@ -1059,6 +1748,297 @@ def _run_schedule_command(args):
     else:
         print('Uso: auditlens schedule [add|list|remove|run-pending]')
     sys.exit(0)
+
+
+def _run_correlate_command(args):
+    """Execute 'auditlens correlate' — analyze attack chains and correlation."""
+    import json as _json
+    try:
+        from .correlation_engine import CorrelationEngine
+        engine = CorrelationEngine()
+        result = engine.analyze_attack_chains(args.path)
+
+        fmt = getattr(args, 'format', 'json')
+        out = getattr(args, 'output', None)
+
+        if fmt == 'html' or (out and out.endswith('.html')):
+            html_out = out or 'correlation_report.html'
+            engine.export_html(result, html_out)
+            print(f'\033[92m[AuditLens Correlate]\033[0m HTML generado: {html_out}')
+        else:
+            json_out = out or 'correlation_report.json'
+            with open(json_out, 'w', encoding='utf-8') as fh:
+                _json.dump(result, fh, indent=2, default=str)
+            print(f'\033[92m[AuditLens Correlate]\033[0m JSON guardado: {json_out}')
+
+        sys.exit(0)
+    except ImportError:
+        print('\033[91m[ERROR]\033[0m Módulo correlation_engine no disponible.')
+        sys.exit(1)
+
+
+def _run_auto_fix_command(args):
+    """Execute 'auditlens auto-fix' — automated remediation."""
+    import json as _json
+    try:
+        from .remediation_engine import RemediationEngine
+        engine = RemediationEngine()
+        result = engine.auto_remediate(
+            project_path=args.path,
+            min_severity=getattr(args, 'severity', 'MEDIUM'),
+            dry_run=getattr(args, 'dry_run', False),
+        )
+
+        out = getattr(args, 'output', None)
+        if out:
+            with open(out, 'w', encoding='utf-8') as fh:
+                _json.dump(result, fh, indent=2, default=str)
+            print(f'\033[92m[AuditLens Auto-Fix]\033[0m Reporte guardado: {out}')
+
+        print(f'\n\033[1m=== AUTO-FIX SUMMARY ===\033[0m')
+        print(f'  Hallazgos procesados: {result.get("total_findings", 0)}')
+        print(f'  Remediados: {result.get("remediated", 0)}')
+        print(f'  Fallidos: {result.get("failed", 0)}')
+
+        sys.exit(0)
+    except ImportError:
+        print('\033[91m[ERROR]\033[0m Módulo remediation_engine no disponible.')
+        sys.exit(1)
+
+
+def _run_train_ml_command(args):
+    """Execute 'auditlens train-ml' — train false positive classifier."""
+    try:
+        from .ml_classifier import FalsePositiveClassifier
+        classifier = FalsePositiveClassifier()
+
+        training_data = getattr(args, 'training_data', None)
+        output_path = getattr(args, 'output', 'fp_classifier.pkl')
+
+        print('\033[94m[AuditLens ML]\033[0m Entrenando clasificador de falsos positivos...')
+        classifier.train_from_file(training_data)
+        classifier.save_model(output_path)
+
+        print(f'\033[92m[AuditLens ML]\033[0m Modelo entrenado y guardado: {output_path}')
+        sys.exit(0)
+    except ImportError:
+        print('\033[91m[ERROR]\033[0m Módulo ml_classifier no disponible.')
+        sys.exit(1)
+
+
+def _run_scan_distributed_command(args):
+    """Execute 'auditlens scan-distributed' — parallel scanning with workers."""
+    try:
+        from .distributed_scanner import DistributedScanner
+        scanner = DistributedScanner(num_workers=getattr(args, 'workers', 4))
+
+        print(f'\033[94m[AuditLens Distributed]\033[0m Iniciando escaneo con {args.workers} workers...')
+        findings = scanner.scan_project(
+            project_path=args.path,
+            min_severity=getattr(args, 'severity', 'LOW'),
+        )
+
+        _export_findings(findings, getattr(args, 'format', 'text'), getattr(args, 'output', None), scan_path=args.path)
+
+        has_critical = any(f.get('severity') in ('CRITICAL', 'HIGH') for f in findings)
+        sys.exit(1 if has_critical else 0)
+    except ImportError:
+        print('\033[91m[ERROR]\033[0m Módulo distributed_scanner no disponible.')
+        sys.exit(1)
+
+
+def _run_policy_command(args):
+    """Execute 'auditlens policy' — policy management."""
+    try:
+        from .policy_engine import PolicyEngine
+        engine = PolicyEngine()
+
+        cmd = getattr(args, 'policy_command', None)
+
+        if cmd == 'list':
+            policies = engine.list_policies()
+            print('\033[1m=== POLÍTICAS DISPONIBLES ===\033[0m')
+            for p in policies:
+                print(f'  • {p["name"]}: {p["description"]}')
+
+        elif cmd == 'validate':
+            import json as _json
+            with open(args.findings, encoding='utf-8') as fh:
+                findings = _json.load(fh)
+
+            policy_file = getattr(args, 'policy', None)
+            violations = engine.validate_against_policy(findings, policy_file)
+
+            if violations:
+                print(f'\033[91m[Policy Violations]\033[0m {len(violations)} violación(es) detectada(s):')
+                for v in violations:
+                    print(f'  • {v["rule"]}: {v["message"]}')
+                sys.exit(1)
+            else:
+                print('\033[92m[Policy]\033[0m Todos los hallazgos cumplen con la política.')
+                sys.exit(0)
+
+        elif cmd == 'test':
+            result = engine.test_policy(args.policy, getattr(args, 'sample', None))
+            print(f'\033[92m[Policy Test]\033[0m Resultado: {result["status"]}')
+            sys.exit(0 if result['status'] == 'pass' else 1)
+
+        else:
+            print('Uso: auditlens policy [list|validate|test]')
+            sys.exit(1)
+
+    except ImportError:
+        print('\033[91m[ERROR]\033[0m Módulo policy_engine no disponible.')
+        sys.exit(1)
+
+
+def _run_lsp_server_command(args):
+    """Execute 'auditlens lsp-server' — start Language Server Protocol server."""
+    try:
+        from .lsp_server import AuditLensLanguageServer
+
+        port = getattr(args, 'port', 2087)
+        use_stdio = getattr(args, 'stdio', False)
+
+        print(f'\033[94m[AuditLens LSP]\033[0m Iniciando servidor LSP...')
+
+        server = AuditLensLanguageServer()
+
+        if use_stdio:
+            print('  Modo: stdio')
+            server.start_stdio()
+        else:
+            print(f'  Modo: TCP socket en puerto {port}')
+            server.start_tcp(port=port)
+
+    except ImportError:
+        print('\033[91m[ERROR]\033[0m Módulo lsp_server no disponible.')
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print('\n\033[93m[AuditLens LSP]\033[0m Servidor detenido.')
+        sys.exit(0)
+
+
+def _run_predict_command(args):
+    """Execute 'auditlens predict' — predictive compliance dashboard."""
+    try:
+        from .predictive_dashboard import CompliancePredictor
+        predictor = CompliancePredictor()
+
+        horizon = getattr(args, 'horizon', 90)
+        output_path = getattr(args, 'output', 'predictive_dashboard.html')
+
+        print(f'\033[94m[AuditLens Predict]\033[0m Generando predicciones para {horizon} días...')
+        predictor.generate_dashboard(
+            project_path=args.path,
+            horizon_days=horizon,
+            output_path=output_path,
+        )
+
+        print(f'\033[92m[AuditLens Predict]\033[0m Dashboard generado: {output_path}')
+
+        import webbrowser, os
+        webbrowser.open(f'file://{os.path.abspath(output_path)}')
+        sys.exit(0)
+
+    except ImportError:
+        print('\033[91m[ERROR]\033[0m Módulo predictive_dashboard no disponible.')
+        sys.exit(1)
+
+
+def _run_supply_chain_command(args):
+    """Execute 'auditlens supply-chain' — SBOM + vulnerability analysis."""
+    try:
+        from .supply_chain_guard import SupplyChainGuard
+        guard = SupplyChainGuard()
+
+        print('\033[94m[AuditLens Supply Chain]\033[0m Analizando cadena de suministro...')
+        result = guard.analyze_project(args.path)
+
+        fmt = getattr(args, 'format', 'json')
+        out = getattr(args, 'output', 'supply_chain_report.json')
+
+        if fmt == 'cyclonedx':
+            guard.export_cyclonedx(result, out)
+        elif fmt == 'html':
+            guard.export_html(result, out)
+        else:
+            import json as _json
+            with open(out, 'w', encoding='utf-8') as fh:
+                _json.dump(result, fh, indent=2, default=str)
+
+        print(f'\033[92m[AuditLens Supply Chain]\033[0m Reporte generado: {out}')
+
+        critical = result.get('critical_vulnerabilities', 0)
+        sys.exit(1 if critical > 0 else 0)
+
+    except ImportError:
+        print('\033[91m[ERROR]\033[0m Módulo supply_chain_guard no disponible.')
+        sys.exit(1)
+
+
+def _run_gen_tests_command(args):
+    """Execute 'auditlens gen-tests' — generate security tests."""
+    try:
+        from .security_test_generator import SecurityTestGenerator
+        generator = SecurityTestGenerator()
+
+        output_dir = getattr(args, 'output_dir', './security_tests')
+        framework = getattr(args, 'framework', 'pytest')
+
+        print(f'\033[94m[AuditLens Gen-Tests]\033[0m Generando tests de seguridad ({framework})...')
+        result = generator.generate_tests(
+            project_path=args.path,
+            output_dir=output_dir,
+            framework=framework,
+        )
+
+        print(f'\033[92m[AuditLens Gen-Tests]\033[0m Tests generados:')
+        for test_file in result.get('generated_files', []):
+            print(f'  • {test_file}')
+
+        print(f'\n  Total: {len(result.get("generated_files", []))} archivo(s) en {output_dir}')
+        sys.exit(0)
+
+    except ImportError:
+        print('\033[91m[ERROR]\033[0m Módulo security_test_generator no disponible.')
+        sys.exit(1)
+
+
+def _run_tenant_command(args):
+    """Execute 'auditlens tenant' — multi-tenant management."""
+    try:
+        from .tenant_manager import TenantManager
+        manager = TenantManager()
+
+        cmd = getattr(args, 'tenant_command', None)
+
+        if cmd == 'create':
+            name = args.name
+            description = getattr(args, 'description', '')
+            tenant_id = manager.create_tenant(name, description)
+            print(f'\033[92m[AuditLens Tenant]\033[0m Tenant creado: {name} (ID: {tenant_id})')
+
+        elif cmd == 'list':
+            tenants = manager.list_tenants()
+            print('\033[1m=== TENANTS ===\033[0m')
+            for t in tenants:
+                print(f'  • {t["name"]} (ID: {t["id"]}) — {t["description"]}')
+
+        elif cmd == 'delete':
+            name = args.name
+            manager.delete_tenant(name)
+            print(f'\033[92m[AuditLens Tenant]\033[0m Tenant eliminado: {name}')
+
+        else:
+            print('Uso: auditlens tenant [create|list|delete]')
+            sys.exit(1)
+
+        sys.exit(0)
+
+    except ImportError:
+        print('\033[91m[ERROR]\033[0m Módulo tenant_manager no disponible.')
+        sys.exit(1)
 
 
 if __name__ == '__main__':

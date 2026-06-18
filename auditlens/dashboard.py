@@ -16,6 +16,8 @@ Opens http://localhost:8080 with:
 
 from __future__ import annotations
 
+import base64
+import functools
 import json
 import os
 import threading
@@ -124,6 +126,97 @@ _DASHBOARD_HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- ML Metrics & Predictions -->
+  <div class="grid-2">
+    <div class="card">
+      <h2>Métricas de Clasificación ML</h2>
+      <div id="ml-metrics">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div style="text-align:center;padding:12px;background:rgba(34,197,94,.1);border-radius:6px;">
+            <div style="font-size:24px;font-weight:700;color:#22c55e;" id="ml-precision">-</div>
+            <div style="color:var(--muted);font-size:11px;margin-top:4px;">PRECISIÓN</div>
+          </div>
+          <div style="text-align:center;padding:12px;background:rgba(59,130,246,.1);border-radius:6px;">
+            <div style="font-size:24px;font-weight:700;color:#3b82f6;" id="ml-recall">-</div>
+            <div style="color:var(--muted);font-size:11px;margin-top:4px;">RECALL</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span>Verdaderos Positivos:</span><strong id="ml-tp" style="color:var(--green);">0</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span>Falsos Positivos:</span><strong id="ml-fp" style="color:var(--high);">0</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span>Inciertos:</span><strong id="ml-uncertain" style="color:var(--medium);">0</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Predicciones (90 días)</h2>
+      <div id="predictions-box">
+        <div style="text-align:center;padding:20px;background:rgba(239,68,68,.1);border-radius:8px;margin-bottom:12px;">
+          <div style="font-size:36px;font-weight:800;color:var(--critical);" id="pred-total">-</div>
+          <div style="color:var(--muted);font-size:11px;margin-top:6px;">HALLAZGOS PROYECTADOS</div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span>Críticos:</span><strong id="pred-critical" style="color:var(--critical);">0</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span>Altos:</span><strong id="pred-high" style="color:var(--high);">0</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span>Crecimiento:</span><strong id="pred-growth" style="color:var(--medium);">0%</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span>Tiempo estimado de fix:</span><strong id="pred-fix-time" style="color:var(--low);">0d</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attack Chains -->
+  <div class="card">
+    <h2>Cadenas de Ataque Detectadas</h2>
+    <div id="attack-chains-container">
+      <table id="chains-table">
+        <thead><tr><th>Cadena</th><th>Severidad</th><th>Probabilidad</th><th>Impacto</th></tr></thead>
+        <tbody id="chains-body"><tr><td colspan="4" class="empty">Sin cadenas detectadas</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Supply Chain -->
+  <div class="card">
+    <h2>Supply Chain & SBOM</h2>
+    <div class="grid-4" style="margin-bottom:16px;">
+      <div style="text-align:center;padding:12px;background:rgba(59,130,246,.1);border-radius:6px;">
+        <div style="font-size:24px;font-weight:700;color:#3b82f6;" id="sbom-deps">0</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:4px;">DEPENDENCIAS</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:rgba(239,68,68,.1);border-radius:6px;">
+        <div style="font-size:24px;font-weight:700;color:var(--critical);" id="sbom-vulns">0</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:4px;">VULNERABLES</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:rgba(249,115,22,.1);border-radius:6px;">
+        <div style="font-size:24px;font-weight:700;color:var(--high);" id="sbom-cves">0</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:4px;">CVEs</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:rgba(139,92,246,.1);border-radius:6px;">
+        <div style="font-size:14px;font-weight:700;color:#8b5cf6;" id="sbom-risk">-</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:4px;">RIESGO</div>
+      </div>
+    </div>
+    <table id="sbom-table">
+      <thead><tr><th>Paquete</th><th>Versión</th><th>CVE</th><th>Severidad</th></tr></thead>
+      <tbody id="sbom-body"><tr><td colspan="4" class="empty">Sin vulnerabilidades</td></tr></tbody>
+    </table>
+  </div>
+
   <div class="grid-2">
     <!-- Cobertura de cumplimiento -->
     <div class="card">
@@ -166,12 +259,20 @@ let trendChart = null;
 let compChart = null;
 
 async function load() {
-  const [dataResp, histResp] = await Promise.all([
+  const [dataResp, histResp, chainsResp, mlResp, predResp, sbomResp] = await Promise.all([
     fetch('/api/findings'),
     fetch('/api/history'),
+    fetch('/api/attack-chains'),
+    fetch('/api/ml-metrics'),
+    fetch('/api/predictions'),
+    fetch('/api/supply-chain'),
   ]);
   const data    = await dataResp.json();
   const history = await histResp.json();
+  const chains  = await chainsResp.json();
+  const ml      = await mlResp.json();
+  const pred    = await predResp.json();
+  const sbom    = await sbomResp.json();
 
   allFindings = data.findings || [];
   document.getElementById('scan-path-label').textContent = data.scan_path || '';
@@ -186,6 +287,10 @@ async function load() {
   renderFindings(allFindings);
   renderTrend(history);
   renderCompliance(allFindings);
+  renderAttackChains(chains);
+  renderMLMetrics(ml);
+  renderPredictions(pred);
+  renderSupplyChain(sbom);
 }
 
 function updateStats(findings) {
@@ -319,6 +424,73 @@ function renderCompliance(findings) {
   });
 }
 
+function renderAttackChains(data) {
+  const tbody = document.getElementById('chains-body');
+  const chains = data.chains || [];
+  if (!chains.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Sin cadenas detectadas</td></tr>';
+    return;
+  }
+  tbody.innerHTML = chains.map(c => `
+    <tr>
+      <td><strong style="font-size:12px">${c.name}</strong><br><span style="font-size:10px;color:var(--muted)">${c.nodes.join(' → ')}</span></td>
+      <td><span class="sev sev-${c.severity}">${c.severity}</span></td>
+      <td><span style="font-size:11px;color:${c.likelihood==='HIGH'?'var(--critical)':'var(--medium)'};">${c.likelihood}</span></td>
+      <td style="font-size:11px;color:var(--muted);max-width:300px;">${c.impact}</td>
+    </tr>`).join('');
+}
+
+function renderMLMetrics(data) {
+  if (!data.metrics) return;
+  document.getElementById('ml-precision').textContent = data.metrics.precision + '%';
+  document.getElementById('ml-recall').textContent = data.metrics.recall + '%';
+  document.getElementById('ml-tp').textContent = data.likely_true_positives || 0;
+  document.getElementById('ml-fp').textContent = data.likely_false_positives || 0;
+  document.getElementById('ml-uncertain').textContent = data.uncertain || 0;
+}
+
+function renderPredictions(data) {
+  if (data.status !== 'success' || !data.predictions || data.predictions.length === 0) {
+    document.getElementById('pred-total').textContent = '-';
+    return;
+  }
+  const pred90 = data.predictions.find(p => p.days_ahead === 90) || data.predictions[data.predictions.length - 1];
+  document.getElementById('pred-total').textContent = pred90.total || 0;
+  document.getElementById('pred-critical').textContent = pred90.critical || 0;
+  document.getElementById('pred-high').textContent = pred90.high || 0;
+
+  const growth = data.debt_analysis ? data.debt_analysis.growth_percentage : 0;
+  document.getElementById('pred-growth').textContent = growth + '%';
+
+  const fixTime = data.fix_time_estimate ? data.fix_time_estimate.estimated_days : 0;
+  document.getElementById('pred-fix-time').textContent = fixTime + 'd';
+}
+
+function renderSupplyChain(data) {
+  document.getElementById('sbom-deps').textContent = data.total_dependencies || 0;
+
+  const vulnDetails = data.vulnerabilities?.details || [];
+  const uniquePackages = new Set(vulnDetails.map(v => v.package)).size;
+  document.getElementById('sbom-vulns').textContent = uniquePackages;
+  document.getElementById('sbom-cves').textContent = data.vulnerabilities?.total || 0;
+
+  const risk = data.risk_score?.level || 'NONE';
+  document.getElementById('sbom-risk').textContent = risk;
+
+  const tbody = document.getElementById('sbom-body');
+  if (!vulnDetails.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Sin vulnerabilidades</td></tr>';
+    return;
+  }
+  tbody.innerHTML = vulnDetails.slice(0, 10).map(v => `
+    <tr>
+      <td><code style="font-size:11px">${v.package}</code></td>
+      <td style="font-size:11px">${v.installed_version} → ${v.fixed_version}</td>
+      <td><code style="font-size:11px;color:var(--high);">${v.cve_id}</code></td>
+      <td><span class="sev sev-${v.severity}">${v.severity}</span></td>
+    </tr>`).join('');
+}
+
 async function triggerScan() {
   document.getElementById('scan-btn').disabled = true;
   document.getElementById('spinner').style.display = 'block';
@@ -344,7 +516,7 @@ setInterval(load, 30000); // actualizar cada 30 segundos
 def _build_app(scan_path: str, db_path: Optional[str] = None):
     """Build and return a Flask WSGI app for the dashboard."""
     try:
-        from flask import Flask, jsonify, request as flask_request
+        from flask import Flask, jsonify, request as flask_request, Response
     except ImportError:
         raise ImportError(
             "Flask is required for the dashboard. Install with: pip install flask"
@@ -352,9 +524,33 @@ def _build_app(scan_path: str, db_path: Optional[str] = None):
 
     from .history import get_history, record_scan, _db_path
     from .analyzer import run_static_analysis
+    from .correlation_engine import run_correlation
+    from .ml_classifier import classify_findings
+    from .predictive_dashboard import predict_trends, estimate_fix_time
+    from .supply_chain_guard import generate_sbom
 
     app = Flask(__name__, static_folder=None)
     app.config['scan_path'] = os.path.abspath(scan_path)
+
+    # ── Basic Auth ────────────────────────────────────────────────────────────
+    _auth_user = os.environ.get('AUDITLENS_USER', '')
+    _auth_pass = os.environ.get('AUDITLENS_PASSWORD', '')
+    _auth_enabled = bool(_auth_user and _auth_pass)
+
+    def _require_auth(f):
+        @functools.wraps(f)
+        def decorated(*args, **kwargs):
+            if not _auth_enabled:
+                return f(*args, **kwargs)
+            auth = flask_request.authorization
+            if not auth or auth.username != _auth_user or auth.password != _auth_pass:
+                return Response(
+                    'Authentication required.',
+                    401,
+                    {'WWW-Authenticate': 'Basic realm="AuditLens"'},
+                )
+            return f(*args, **kwargs)
+        return decorated
 
     # In-memory cache of latest findings
     _state: Dict = {'findings': [], 'last_scan': None}
@@ -376,10 +572,12 @@ def _build_app(scan_path: str, db_path: Optional[str] = None):
     _refresh_from_history()
 
     @app.route('/')
+    @_require_auth
     def index():
         return _DASHBOARD_HTML, 200, {'Content-Type': 'text/html; charset=utf-8'}
 
     @app.route('/api/findings')
+    @_require_auth
     def api_findings():
         return jsonify({
             'findings': _state['findings'],
@@ -389,10 +587,12 @@ def _build_app(scan_path: str, db_path: Optional[str] = None):
         })
 
     @app.route('/api/history')
+    @_require_auth
     def api_history():
         return jsonify(get_history(app.config['scan_path'], limit=20, db_path=db_path))
 
     @app.route('/api/scan', methods=['POST'])
+    @_require_auth
     def api_scan():
         """Trigger a fresh scan in a background thread."""
         def _do_scan():
@@ -409,13 +609,50 @@ def _build_app(scan_path: str, db_path: Optional[str] = None):
         _refresh_from_history()
         return jsonify({'status': 'ok', 'total': len(_state['findings'])})
 
+    @app.route('/api/attack-chains')
+    @_require_auth
+    def api_attack_chains():
+        """Get correlated attack chains from current findings."""
+        findings = _state.get('findings', [])
+        correlation_result = run_correlation(findings)
+        return jsonify(correlation_result)
+
+    @app.route('/api/ml-metrics')
+    @_require_auth
+    def api_ml_metrics():
+        """Get ML classification metrics and false positive analysis."""
+        findings = _state.get('findings', [])
+        classification_result = classify_findings(findings)
+        return jsonify(classification_result)
+
+    @app.route('/api/predictions')
+    @_require_auth
+    def api_predictions():
+        """Get predictive analytics based on historical trends."""
+        history = get_history(app.config['scan_path'], limit=20, db_path=db_path)
+        predictions = predict_trends(history)
+
+        # Add fix time estimation
+        findings = _state.get('findings', [])
+        fix_estimate = estimate_fix_time(findings)
+        predictions['fix_time_estimate'] = fix_estimate
+
+        return jsonify(predictions)
+
+    @app.route('/api/supply-chain')
+    @_require_auth
+    def api_supply_chain():
+        """Get SBOM and supply chain vulnerability analysis."""
+        sbom = generate_sbom(app.config['scan_path'])
+        return jsonify(sbom)
+
     return app
 
 
 def serve_dashboard(
     scan_path: str,
     port: int = 8080,
-    host: str = '127.0.0.1',
+    host: str = '0.0.0.0',
     open_browser: bool = True,
     scan_first: bool = False,
     db_path: Optional[str] = None,

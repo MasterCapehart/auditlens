@@ -1,0 +1,38 @@
+# docker-compose.yml — for local testing before pushing to Azure
+# Usage: docker compose up --build
+# Dashboard will be at http://localhost:8080  (user: admin / changeme)
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Auth — change these before deploying to production
+      AUDITLENS_USER: admin
+      AUDITLENS_PASSWORD: changeme
+      # Path inside the container where the project to scan is mounted
+      SCAN_PATH: /data/scan
+      # Persistent SQLite storage
+      AUDITLENS_DB: /data/db/history.db
+      # Run a fresh scan when the container starts
+      SCAN_FIRST: "true"
+      # Gunicorn workers
+      WEB_CONCURRENCY: "2"
+    volumes:
+      # Mount the project you want to audit (read-only is fine)
+      - ./:/data/scan:ro
+      # Persistent volume for scan history (SQLite)
+      - auditlens_db:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/findings')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  auditlens_db:

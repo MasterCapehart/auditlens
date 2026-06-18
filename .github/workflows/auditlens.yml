@@ -1,0 +1,79 @@
+# AuditLens Security Scan — GitHub Actions
+# Generado por: auditlens ci-setup --platform github
+
+name: AuditLens Security Scan
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+  schedule:
+    - cron: '0 2 * * 1'   # Lunes 2am UTC
+
+jobs:
+  security-scan:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # para subir SARIF a GitHub Security tab
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # necesario para git-scan (historial completo)
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install AuditLens
+        run: pip install auditlens
+
+      - name: SAST + SCA Scan
+        run: |
+          auditlens scan . \
+            --format sarif \
+            --output auditlens-results.sarif \
+            --severity LOW \
+            --empresa "${{ vars.EMPRESA_NOMBRE || 'Mi Empresa' }}"
+        continue-on-error: true   # no bloquear el build, solo reportar
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: auditlens-results.sarif
+          category: auditlens
+
+      - name: Ley 21.719 PII Scan
+        run: |
+          auditlens ley21719 . \
+            --format json \
+            --output ley21719-results.json \
+            --empresa "${{ vars.EMPRESA_NOMBRE || 'Mi Empresa' }}"
+        continue-on-error: true
+
+      - name: Git Secrets Scan
+        run: auditlens git-scan . --format json --output git-secrets.json
+        continue-on-error: true
+
+      - name: Upload scan artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: auditlens-reports
+          path: |
+            auditlens-results.sarif
+            ley21719-results.json
+            git-secrets.json
+          retention-days: 30
+
+      - name: Fail on CRITICAL findings
+        run: |
+          auditlens scan . --severity CRITICAL
+        # Este step falla el build si hay hallazgos CRITICAL

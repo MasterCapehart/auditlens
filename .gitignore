@@ -48,3 +48,6 @@ auditlens_ipc_*.key
 *.swp
 *.swo
 .env
+.claude/
+jira_test.py
+auditlens_cli/
